@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HisabHut App</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="logo">
+                <h2>HisabHut</h2>
+            </div>
+            <nav class="nav-menu">
+                <a href="#dashboard" class="nav-item active" data-page="dashboard">
+                    <span class="icon">📊</span>
+                    <span>Dashboard</span>
+                </a>
+                <a href="#orders" class="nav-item" data-page="orders">
+                    <span class="icon">📦</span>
+                    <span>Orders</span>
+                </a>
+                <a href="#credits" class="nav-item" data-page="credits">
+                    <span class="icon">💳</span>
+                    <span>Credits</span>
+                </a>
+                <a href="#products" class="nav-item" data-page="products">
+                    <span class="icon">🛍️</span>
+                    <span>Products</span>
+                </a>
+                <a href="#customers" class="nav-item" data-page="customers">
+                    <span class="icon">👥</span>
+                    <span>Customers</span>
+                </a>
+                <a href="#history" class="nav-item" data-page="history">
+                    <span class="icon">📜</span>
+                    <span>History</span>
+                </a>
+                <a href="#settings" class="nav-item" data-page="settings">
+                    <span class="icon">⚙️</span>
+                    <span>Settings</span>
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <header class="top-bar">
+                <h1 id="page-title">Dashboard</h1>
+                <div class="user-info">
+                    <span class="user-name">User</span>
+                    <span class="icon">👤</span>
+                </div>
+            </header>
+
+            <div id="content" class="content-area">
+                <!-- Dynamic content will be loaded here -->
+            </div>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
