@@ -307,46 +307,46 @@ class CustomerApp {
                             </thead>
                             <tbody>
                                 <tr>
-                                    <td>#CR-001</td>
+                                    <td>#CR-006</td>
                                     <td>Credit Added</td>
                                     <td style="color: var(--success-color); font-weight: 600;">+₹5,000</td>
                                     <td>2026-02-10</td>
                                     <td>₹5,250</td>
                                 </tr>
                                 <tr>
-                                    <td>#CR-002</td>
+                                    <td>#CR-005</td>
                                     <td>Order Payment</td>
                                     <td style="color: var(--danger-color); font-weight: 600;">-₹2,340</td>
-                                    <td>2026-02-10</td>
+                                    <td>2026-02-09</td>
                                     <td>₹250</td>
-                                </tr>
-                                <tr>
-                                    <td>#CR-003</td>
-                                    <td>Credit Added</td>
-                                    <td style="color: var(--success-color); font-weight: 600;">+₹10,000</td>
-                                    <td>2026-02-08</td>
-                                    <td>₹2,590</td>
                                 </tr>
                                 <tr>
                                     <td>#CR-004</td>
                                     <td>Order Payment</td>
                                     <td style="color: var(--danger-color); font-weight: 600;">-₹1,250</td>
                                     <td>2026-02-08</td>
-                                    <td>-₹7,410</td>
+                                    <td>₹2,590</td>
                                 </tr>
                                 <tr>
-                                    <td>#CR-005</td>
+                                    <td>#CR-003</td>
+                                    <td>Order Payment</td>
+                                    <td style="color: var(--danger-color); font-weight: 600;">-₹890</td>
+                                    <td>2026-02-05</td>
+                                    <td>₹3,840</td>
+                                </tr>
+                                <tr>
+                                    <td>#CR-002</td>
                                     <td>Order Payment</td>
                                     <td style="color: var(--danger-color); font-weight: 600;">-₹3,200</td>
                                     <td>2026-02-01</td>
-                                    <td>-₹6,160</td>
+                                    <td>₹4,730</td>
                                 </tr>
                                 <tr>
-                                    <td>#CR-006</td>
-                                    <td>Order Payment</td>
-                                    <td style="color: var(--danger-color); font-weight: 600;">-₹2,960</td>
+                                    <td>#CR-001</td>
+                                    <td>Credit Added</td>
+                                    <td style="color: var(--success-color); font-weight: 600;">+₹7,930</td>
                                     <td>2026-01-28</td>
-                                    <td>-₹2,960</td>
+                                    <td>₹7,930</td>
                                 </tr>
                             </tbody>
                         </table>
