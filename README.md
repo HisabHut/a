@@ -1,10 +1,18 @@
-# HisabHut - Single Page Application
+# HisabHut - Business Management Applications
 
-A modern, responsive single-page application for managing orders, products, customers, credits, and business operations.
+A modern, responsive single-page application suite for managing orders, products, customers, credits, and business operations.
+
+## Applications
+
+### Employee App (index.html)
+The main employee/admin application for managing business operations with a sidebar navigation.
+
+### Customer App (customer.html)
+A customer-facing application that allows customers to view their orders, credits, and browse the store with a mobile-friendly bottom navigation.
 
 ## Features
 
-### Core Pages
+### Employee App Features
 - **Dashboard** - Overview with statistics and recent activity
 - **Orders** - Complete order management and tracking
 - **Credits** - Credit transactions and balance management
@@ -12,6 +20,13 @@ A modern, responsive single-page application for managing orders, products, cust
 - **Customers** - Customer database and analytics
 - **History** - Activity log and audit trail
 - **Settings** - Application configuration and preferences
+
+### Customer App Features
+- **Dashboard + Store** - View statistics and browse available products
+- **Orders** - View order history with delivery dates and status
+- **Credits** - View-only credit balance and transaction history
+- **Profile/Login** - Customer authentication with Company ID, Customer ID, and Password
+- **Bottom Navigation** - Mobile-friendly navigation bar for easy access
 
 ### Key Features
 - ✅ Single Page Application (SPA) architecture
@@ -48,23 +63,36 @@ npx http-server
 php -S localhost:8080
 ```
 
-4. Navigate to `http://localhost:8080`
+4. Navigate to:
+   - Employee App: `http://localhost:8080/index.html`
+   - Customer App: `http://localhost:8080/customer.html`
 
 ### Project Structure
 
 ```
-├── index.html          # Main HTML file
-├── styles.css          # Application styles
-├── app.js             # Application logic and routing
+├── index.html          # Employee app HTML file
+├── styles.css          # Employee app styles
+├── app.js             # Employee app logic and routing
+├── customer.html      # Customer app HTML file
+├── customer-styles.css # Customer app styles
+├── customer.js        # Customer app logic and routing
 └── README.md          # Documentation
 ```
 
 ## Application Usage
 
-### Navigation
+### Employee App Navigation
 - Click on sidebar menu items to navigate between pages
 - Use browser back/forward buttons for navigation history
 - Active page is highlighted in the sidebar
+
+### Customer App Usage
+- **Login**: Customers login with Company ID, Customer ID, and Password (credentials created by admin)
+- **Navigation**: Use the bottom navigation bar to switch between pages
+- **Dashboard**: View order statistics and browse the store
+- **Orders**: View order history with delivery dates and status
+- **Credits**: View credit balance and transaction history (read-only)
+- **Profile**: View account details or login/logout
 
 ### Responsive Behavior
 - **Desktop (>768px)**: Full sidebar with icons and labels
