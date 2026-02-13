@@ -282,11 +282,11 @@ class CustomerApp {
                     <div class="stat-label">Available Credits</div>
                 </div>
                 <div class="stat-card" style="background: linear-gradient(135deg, #10b981, #059669);">
-                    <div class="stat-value">₹15,000</div>
+                    <div class="stat-value">₹12,930</div>
                     <div class="stat-label">Total Credits Issued</div>
                 </div>
                 <div class="stat-card" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
-                    <div class="stat-value">₹9,750</div>
+                    <div class="stat-value">₹7,680</div>
                     <div class="stat-label">Credits Used</div>
                 </div>
             </div>
