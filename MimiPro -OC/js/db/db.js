@@ -299,8 +299,8 @@ const DB = {
         return await this.add('credits', creditData);
     },
 
-    async updateCredit(id, creditData) {
-        return await this.update('credits', id, creditData);
+    async updateCredit(creditData) {
+        return await this.update('credits', creditData);
     }
 };
 

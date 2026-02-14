@@ -471,11 +471,15 @@ const CreditsModule = {
             card.onmouseover = () => card.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
             card.onmouseout = () => card.style.boxShadow = 'none';
 
+            const notesOrOrder = credit.orderNumber 
+                ? `<div style="font-size: 11px; color: #667eea; font-weight: 600;">Order: ${credit.orderNumber}</div>` 
+                : (credit.notes ? `<div style="font-size: 11px; color: #6c757d;">${credit.notes}</div>` : '');
+
             card.innerHTML = `
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                     <div>
                         <div style="font-size: 12px; color: #6c757d; margin-bottom: 4px;">📅 ${credit.date || ''}</div>
-                        ${credit.notes ? `<div style="font-size: 11px; color: #6c757d;">${credit.notes}</div>` : ''}
+                        ${notesOrOrder}
                     </div>
                     <div style="text-align: right;">
                         <div style="font-size: 14px; font-weight: 700; color: #1f2937; margin-bottom: 4px;">৳${Math.round(credit.amount || 0)}</div>
@@ -498,9 +502,8 @@ const CreditsModule = {
         const areaName = customer?.area || 'No Area';
         const mobile = customer?.mobile || 'N/A';
 
-        const orderId = credit.orderId ? parseInt(credit.orderId, 10) : null;
-        const orderById = orderId ? this.orders.find(o => o.id === orderId) : null;
-        const order = orderById || this.orders.find(o => o.orderNumber === credit.orderNumber);
+        const orderId = credit.orderId || null;
+        const order = orderId ? this.orders.find(o => o.id === orderId) : null;
 
         let productsHtml = '';
         if (order && order.items && order.items.length > 0) {
@@ -741,7 +744,7 @@ const CreditsModule = {
                 credit.paymentHistory.push({ amount: paymentToApply, date: paymentDate, timestamp: Date.now() });
                 remainingPayment -= paymentToApply;
 
-                await DB.updateCredit(credit.id, credit);
+                await DB.updateCredit(credit);
             }
 
             App.showToast('Payment recorded successfully', 'success');

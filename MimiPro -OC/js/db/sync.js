@@ -254,10 +254,7 @@ const SyncModule = {
             const ownerId = this.currentUser.uid;
             console.log('🔑 Admin Firebase Auth UID:', ownerId);
             
-            // Step 1: Upload local changes to cloud (backup)
-            await this.uploadLocalChanges(ownerId);
-            
-            // Step 2: Download cloud data and merge (restore)
+            // Only download cloud data (no upload)
             await this.downloadAndMerge(ownerId);
             
             this.lastSyncTime = new Date();
@@ -299,60 +296,11 @@ const SyncModule = {
     },
 
     /**
-     * Upload local changes to Firestore (Backup)
-     * Only uploads records where local.updatedAt > cloud.updatedAt
+     * Upload local changes to Firestore (DISABLED - Download only)
      */
     async uploadLocalChanges(ownerId) {
-        console.log('⬆️ Uploading local changes...');
-        
-        const stores = Object.values(DB.stores);
-        let uploadCount = 0;
-        let errors = [];
-
-        for (const storeName of stores) {
-            try {
-                // Get all unsynced items (including deleted ones)
-                const allData = await DB.getAll(storeName, true);
-                const unsyncedData = allData.filter(item => !item.synced);
-
-                for (const localItem of unsyncedData) {
-                    try {
-                        // Check if cloud has newer version
-                        const cloudItem = await this.getFromCloud(ownerId, storeName, localItem.id);
-                        
-                        // Upload if: 
-                        // 1. Item doesn't exist in cloud, OR
-                        // 2. Local is newer than cloud
-                        if (!cloudItem || this.isLocalNewer(localItem, cloudItem)) {
-                            await this.pushToCloud(ownerId, storeName, localItem);
-                            
-                            // Mark as synced in local DB
-                            await DB.update(storeName, { ...localItem, synced: true });
-                            uploadCount++;
-                            
-                            console.log(`✅ Uploaded ${storeName}/${localItem.id}`);
-                        } else {
-                            console.log(`⏭️ Skipped ${storeName}/${localItem.id} - cloud is newer`);
-                        }
-                    } catch (itemError) {
-                        console.error(`❌ Failed to upload ${storeName}/${localItem.id}:`, itemError);
-                        errors.push({
-                            store: storeName,
-                            id: localItem.id,
-                            error: itemError.message || 'Unknown error'
-                        });
-                    }
-                }
-            } catch (storeError) {
-                console.error(`❌ Failed to process ${storeName}:`, storeError);
-            }
-        }
-
-        console.log(`⬆️ Upload complete: ${uploadCount} items uploaded`);
-        
-        if (errors.length > 0) {
-            console.error('⚠️ Upload errors:', errors);
-        }
+        console.log('⏭️ Upload disabled - Download only mode');
+        return;
     },
 
     /**
@@ -401,35 +349,8 @@ const SyncModule = {
      * Push single item to cloud
      */
     async pushToCloud(ownerId, storeName, data) {
-        try {
-            // Determine collection path based on store type
-            const collectionPath = this.getCollectionPath(ownerId, storeName);
-            
-            const docRef = FirebaseDB.collection('users')
-                .doc(ownerId)
-                .collection(collectionPath)
-                .doc(String(data.id));
-
-            // Prepare data for Firestore
-            const firestoreData = {
-                ...data,
-                ownerId: ownerId,
-                employeeId: data.employeeId ? String(data.employeeId) : null,
-                updatedAt: data.updatedAt || new Date().toISOString(),
-                createdAt: data.createdAt || new Date().toISOString(),
-                deleted: data.deleted || false,
-                syncVersion: data.syncVersion || 1,
-                syncedAt: firebase.firestore.FieldValue.serverTimestamp()
-            };
-
-            await docRef.set(firestoreData, { merge: true });
-            
-            console.log(`✅ Pushed ${storeName}/${data.id} to cloud`);
-            
-        } catch (error) {
-            console.error(`❌ Failed to push ${storeName}/${data.id}:`, error);
-            throw error;
-        }
+        // Upload disabled - Download only mode
+        return;
     },
 
     /**
