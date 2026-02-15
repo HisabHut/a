@@ -1,7 +1,7 @@
 // Customer App Core
 class CustomerApp {
     constructor() {
-        this.currentPage = 'dashboard';
+        this.currentPage = 'home';
         this.customerData = this.loadCustomerData();
         this.init();
     }
@@ -14,17 +14,18 @@ class CustomerApp {
         this.updateCustomerName();
         
         // Check if customer is logged in
-        if (!this.customerData.isLoggedIn && window.location.hash !== '#profile') {
-            this.loadPage('profile', false);
+        if (!this.customerData.isLoggedIn) {
+            // Show login overlay or redirect
+            this.showLoginOverlay();
         } else {
-            // Load initial page from URL or default to dashboard
-            const initialPage = window.location.hash.slice(1) || 'dashboard';
+            // Load initial page from URL or default to home
+            const initialPage = window.location.hash.slice(1) || 'home';
             this.loadPage(initialPage, false);
         }
         
         // Handle browser back/forward
         window.addEventListener('popstate', (e) => {
-            const page = e.state?.page || 'dashboard';
+            const page = e.state?.page || 'home';
             this.loadPage(page, false);
         });
     }
@@ -49,8 +50,11 @@ class CustomerApp {
             }
         });
 
-        // Update page title
-        const pageTitle = pageName.charAt(0).toUpperCase() + pageName.slice(1);
+        // Update page title - handle camelCase names
+        const pageTitle = pageName
+            .replace(/([A-Z])/g, ' $1')
+            .replace(/^./, str => str.toUpperCase())
+            .trim();
         document.getElementById('page-title').textContent = pageTitle;
 
         // Load page content
@@ -69,8 +73,9 @@ class CustomerApp {
     }
 
     setupPageEventListeners(pageName) {
-        if (pageName === 'profile') {
-            // Login form handler
+        // Handle login overlay close
+        const loginOverlay = document.getElementById('login-overlay');
+        if (loginOverlay) {
             const loginForm = document.getElementById('login-form');
             if (loginForm) {
                 loginForm.addEventListener('submit', (e) => {
@@ -78,29 +83,20 @@ class CustomerApp {
                     this.handleLogin();
                 });
             }
-
-            // Logout button handler
-            const logoutBtn = document.getElementById('logout-btn');
-            if (logoutBtn) {
-                logoutBtn.addEventListener('click', () => {
-                    this.handleLogout();
-                });
-            }
         }
     }
 
     getPageContent(pageName) {
         const pages = {
-            dashboard: this.getDashboardContent(),
+            home: this.getHomeContent(),
             orders: this.getOrdersContent(),
-            credits: this.getCreditsContent(),
-            profile: this.getProfileContent()
+            customerDetails: this.getCustomerDetailsContent()
         };
 
-        return pages[pageName] || pages.dashboard;
+        return pages[pageName] || pages.home;
     }
 
-    getDashboardContent() {
+    getHomeContent() {
         return `
             <div class="grid grid-2">
                 <div class="stat-card">
@@ -274,171 +270,118 @@ class CustomerApp {
         `;
     }
 
-    getCreditsContent() {
+    getCustomerDetailsContent() {
         return `
-            <div class="grid grid-3">
-                <div class="stat-card">
-                    <div class="stat-value">₹5,250</div>
-                    <div class="stat-label">Available Credits</div>
-                </div>
-                <div class="stat-card" style="background: linear-gradient(135deg, #10b981, #059669);">
-                    <div class="stat-value">₹12,930</div>
-                    <div class="stat-label">Total Credits Issued</div>
-                </div>
-                <div class="stat-card" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
-                    <div class="stat-value">₹7,680</div>
-                    <div class="stat-label">Credits Used</div>
+            <div class="card">
+                <div class="card-header">Customer Information</div>
+                <div class="card-body">
+                    <div class="customer-info-grid">
+                        <div class="info-item">
+                            <label class="info-label">Full Name</label>
+                            <div class="info-value">${this.customerData.name || 'N/A'}</div>
+                        </div>
+                        <div class="info-item">
+                            <label class="info-label">Email</label>
+                            <div class="info-value">${this.customerData.email || 'N/A'}</div>
+                        </div>
+                        <div class="info-item">
+                            <label class="info-label">Phone</label>
+                            <div class="info-value">${this.customerData.phone || 'N/A'}</div>
+                        </div>
+                        <div class="info-item">
+                            <label class="info-label">Customer ID</label>
+                            <div class="info-value">${this.customerData.customerId || 'N/A'}</div>
+                        </div>
+                        <div class="info-item">
+                            <label class="info-label">Company ID</label>
+                            <div class="info-value">${this.customerData.companyId || 'N/A'}</div>
+                        </div>
+                        <div class="info-item">
+                            <label class="info-label">Account Status</label>
+                            <div class="info-value"><span class="badge badge-success">Active</span></div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <div class="card" style="margin-top: 2rem;">
-                <div class="card-header">Credit Transaction History</div>
+            <div class="card" style="margin-top: 1.5rem;">
+                <div class="card-header">Credit Information</div>
                 <div class="card-body">
-                    <div class="table-container">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Transaction ID</th>
-                                    <th>Type</th>
-                                    <th>Amount</th>
-                                    <th>Date</th>
-                                    <th>Balance</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td>#CR-006</td>
-                                    <td>Credit Added</td>
-                                    <td style="color: var(--success-color); font-weight: 600;">+₹5,000</td>
-                                    <td>2026-02-10</td>
-                                    <td>₹5,250</td>
-                                </tr>
-                                <tr>
-                                    <td>#CR-005</td>
-                                    <td>Order Payment</td>
-                                    <td style="color: var(--danger-color); font-weight: 600;">-₹2,340</td>
-                                    <td>2026-02-09</td>
-                                    <td>₹250</td>
-                                </tr>
-                                <tr>
-                                    <td>#CR-004</td>
-                                    <td>Order Payment</td>
-                                    <td style="color: var(--danger-color); font-weight: 600;">-₹1,250</td>
-                                    <td>2026-02-08</td>
-                                    <td>₹2,590</td>
-                                </tr>
-                                <tr>
-                                    <td>#CR-003</td>
-                                    <td>Order Payment</td>
-                                    <td style="color: var(--danger-color); font-weight: 600;">-₹890</td>
-                                    <td>2026-02-05</td>
-                                    <td>₹3,840</td>
-                                </tr>
-                                <tr>
-                                    <td>#CR-002</td>
-                                    <td>Order Payment</td>
-                                    <td style="color: var(--danger-color); font-weight: 600;">-₹3,200</td>
-                                    <td>2026-02-01</td>
-                                    <td>₹4,730</td>
-                                </tr>
-                                <tr>
-                                    <td>#CR-001</td>
-                                    <td>Credit Added</td>
-                                    <td style="color: var(--success-color); font-weight: 600;">+₹7,930</td>
-                                    <td>2026-01-28</td>
-                                    <td>₹7,930</td>
-                                </tr>
-                            </tbody>
-                        </table>
+                    <div class="grid grid-3">
+                        <div class="stat-card">
+                            <div class="stat-value">₹5,250</div>
+                            <div class="stat-label">Available Credits</div>
+                        </div>
+                        <div class="stat-card" style="background: linear-gradient(135deg, #10b981, #059669);">
+                            <div class="stat-value">₹12,930</div>
+                            <div class="stat-label">Total Credits Issued</div>
+                        </div>
+                        <div class="stat-card" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
+                            <div class="stat-value">₹7,680</div>
+                            <div class="stat-label">Credits Used</div>
+                        </div>
                     </div>
+                </div>
+            </div>
+
+            <div class="card" style="margin-top: 1.5rem;">
+                <div class="card-header">Account Actions</div>
+                <div class="card-body">
+                    <button id="logout-btn" class="btn btn-danger" style="width: 100%;" onclick="app.handleLogout()">Logout</button>
                 </div>
             </div>
         `;
     }
 
-    getProfileContent() {
-        if (!this.customerData.isLoggedIn) {
-            return this.getLoginForm();
-        } else {
-            return this.getCustomerProfile();
-        }
-    }
-
-    getLoginForm() {
-        return `
-            <div class="login-container">
-                <div class="login-card">
-                    <div class="login-header">
-                        <h2>Customer Login</h2>
-                        <p>Enter your credentials to access your account</p>
-                    </div>
-                    <form id="login-form">
-                        <div class="form-group">
-                            <label class="form-label">Company ID</label>
-                            <input type="text" id="company-id" class="form-input" placeholder="Enter company ID" required />
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Customer ID</label>
-                            <input type="text" id="customer-id" class="form-input" placeholder="Enter customer ID" required />
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Password</label>
-                            <input type="password" id="password" class="form-input" placeholder="Enter password" required />
-                        </div>
-                        <button type="submit" class="btn btn-primary" style="width: 100%; padding: 0.75rem;">Login</button>
-                    </form>
-                    <p style="text-align: center; margin-top: 1rem; color: var(--text-secondary); font-size: 0.875rem;">
-                        Credentials are created by the admin app
-                    </p>
+    showLoginOverlay() {
+        // Create login overlay
+        const overlay = document.createElement('div');
+        overlay.id = 'login-overlay';
+        overlay.className = 'login-overlay';
+        overlay.innerHTML = `
+            <div class="login-card">
+                <div class="login-header">
+                    <h2>Customer Login</h2>
+                    <p>Enter your credentials to access your account</p>
                 </div>
-            </div>
-        `;
-    }
-
-    getCustomerProfile() {
-        return `
-            <div class="card profile-card">
-                <div class="profile-avatar">👤</div>
-                <div class="profile-info">
-                    <div class="profile-name">${this.customerData.name}</div>
-                    <div class="profile-email">Customer ID: ${this.customerData.customerId}</div>
-                    <div class="profile-email">Company ID: ${this.customerData.companyId}</div>
-                </div>
-            </div>
-
-            <div class="card" style="margin-top: 1rem;">
-                <div class="card-header">Account Details</div>
-                <div class="card-body">
+                <form id="login-form">
                     <div class="form-group">
-                        <label class="form-label">Full Name</label>
-                        <input type="text" class="form-input" value="${this.customerData.name}" readonly />
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Email</label>
-                        <input type="email" class="form-input" value="${this.customerData.email}" readonly />
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Phone</label>
-                        <input type="tel" class="form-input" value="${this.customerData.phone}" readonly />
+                        <label class="form-label">Company ID</label>
+                        <input type="text" id="company-id" class="form-input" placeholder="Enter company ID" required />
                     </div>
                     <div class="form-group">
                         <label class="form-label">Customer ID</label>
-                        <input type="text" class="form-input" value="${this.customerData.customerId}" readonly />
+                        <input type="text" id="customer-id" class="form-input" placeholder="Enter customer ID" required />
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Company ID</label>
-                        <input type="text" class="form-input" value="${this.customerData.companyId}" readonly />
+                        <label class="form-label">Password</label>
+                        <input type="password" id="password" class="form-input" placeholder="Enter password" required />
                     </div>
-                </div>
-            </div>
-
-            <div class="card" style="margin-top: 1rem;">
-                <div class="card-header">Account Actions</div>
-                <div class="card-body">
-                    <button id="logout-btn" class="btn btn-primary" style="width: 100%;">Logout</button>
-                </div>
+                    <button type="submit" class="btn btn-primary" style="width: 100%; padding: 0.75rem;">Login</button>
+                </form>
+                <p style="text-align: center; margin-top: 1rem; color: var(--text-secondary); font-size: 0.875rem;">
+                    Credentials are created by the admin app
+                </p>
             </div>
         `;
+        
+        document.body.appendChild(overlay);
+        
+        // Setup login form listener
+        const loginForm = document.getElementById('login-form');
+        if (loginForm) {
+            loginForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                this.handleLogin();
+            });
+        }
+    }
+
+    hideLoginOverlay() {
+        const overlay = document.getElementById('login-overlay');
+        if (overlay) {
+            overlay.remove();
+        }
     }
 
     handleLogin() {
@@ -464,8 +407,11 @@ class CustomerApp {
             // Update UI
             this.updateCustomerName();
 
-            // Redirect to dashboard
-            this.loadPage('dashboard');
+            // Hide login overlay
+            this.hideLoginOverlay();
+
+            // Redirect to home
+            this.loadPage('home');
         }
     }
 
@@ -481,8 +427,8 @@ class CustomerApp {
         // Update UI
         this.updateCustomerName();
 
-        // Redirect to profile/login page
-        this.loadPage('profile');
+        // Show login overlay
+        this.showLoginOverlay();
     }
 
     loadCustomerData() {
@@ -510,6 +456,7 @@ class CustomerApp {
 }
 
 // Initialize the application
+let app;
 document.addEventListener('DOMContentLoaded', () => {
-    new CustomerApp();
+    app = new CustomerApp();
 });

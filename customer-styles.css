@@ -298,6 +298,20 @@ tr:hover {
 }
 
 /* Login Card Styles */
+.login-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    padding: 1rem;
+}
+
 .login-container {
     display: flex;
     justify-content: center;
@@ -463,11 +477,50 @@ tr:hover {
     font-size: 0.875rem;
 }
 
+/* Customer Info Grid */
+.customer-info-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
+}
+
+.info-item {
+    display: flex;
+    flex-direction: column;
+}
+
+.info-label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 0.5rem;
+}
+
+.info-value {
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+/* Button Danger */
+.btn-danger {
+    background-color: var(--danger-color);
+    color: white;
+}
+
+.btn-danger:hover {
+    background-color: #dc2626;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
     .grid-2,
     .grid-3,
     .grid-4 {
+        grid-template-columns: 1fr;
+    }
+
+    .customer-info-grid {
         grid-template-columns: 1fr;
     }
 
