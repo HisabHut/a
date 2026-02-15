@@ -15,6 +15,7 @@
     --success-color: #10b981;
     --warning-color: #f59e0b;
     --danger-color: #ef4444;
+    --danger-color-hover: #dc2626;
     --bottom-nav-bg: #ffffff;
     --bottom-nav-height: 70px;
 }
@@ -509,7 +510,7 @@ tr:hover {
 }
 
 .btn-danger:hover {
-    background-color: #dc2626;
+    background-color: var(--danger-color-hover);
 }
 
 /* Responsive Design */

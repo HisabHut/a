@@ -454,7 +454,7 @@ class CustomerApp {
 }
 
 // Initialize the application
-let app;
+let customerApp;
 document.addEventListener('DOMContentLoaded', () => {
-    app = new CustomerApp();
+    customerApp = new CustomerApp();
 });
