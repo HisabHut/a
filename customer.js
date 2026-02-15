@@ -73,14 +73,12 @@ class CustomerApp {
     }
 
     setupPageEventListeners(pageName) {
-        // Handle login overlay close
-        const loginOverlay = document.getElementById('login-overlay');
-        if (loginOverlay) {
-            const loginForm = document.getElementById('login-form');
-            if (loginForm) {
-                loginForm.addEventListener('submit', (e) => {
-                    e.preventDefault();
-                    this.handleLogin();
+        // Handle logout button on customer details page
+        if (pageName === 'customerDetails') {
+            const logoutBtn = document.getElementById('logout-btn');
+            if (logoutBtn) {
+                logoutBtn.addEventListener('click', () => {
+                    this.handleLogout();
                 });
             }
         }
@@ -327,7 +325,7 @@ class CustomerApp {
             <div class="card" style="margin-top: 1.5rem;">
                 <div class="card-header">Account Actions</div>
                 <div class="card-body">
-                    <button id="logout-btn" class="btn btn-danger" style="width: 100%;" onclick="app.handleLogout()">Logout</button>
+                    <button id="logout-btn" class="btn btn-danger" style="width: 100%;">Logout</button>
                 </div>
             </div>
         `;
