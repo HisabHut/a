@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>MimiPro Customer App</title>
+    <link rel="stylesheet" href="customer-styles.css">
+    <style>
+        /* Loading spinner styles */
+        .loading-spinner {
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 0.8s linear infinite;
+            display: none;
+        }
+
+        .loading-spinner.active {
+            display: block;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .error-message {
+            display: none;
+            padding: 1rem;
+            background-color: #fee2e2;
+            border-left: 4px solid #ef4444;
+            color: #dc2626;
+            margin-bottom: 1rem;
+            border-radius: 4px;
+            animation: slideDown 0.3s ease;
+        }
+
+        .error-message.show {
+            display: block;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Login Overlay -->
+    <div id="loginOverlay" class="login-overlay hidden">
+        <div class="login-container">
+            <div class="login-card">
+                <div class="logo-section">
+                    <h1><span class="brand-name">Mimi</span><span class="brand-pro">Pro</span></h1>
+                    <p>Customer Portal</p>
+                </div>
+
+                <div id="loginErrorMessage" class="error-message"></div>
+
+                <form id="loginForm" class="login-form">
+                    <div class="form-group">
+                        <label class="form-label" for="companyId">Company ID</label>
+                        <input 
+                            type="text" 
+                            id="companyId" 
+                            class="form-input" 
+                            placeholder="Enter company ID"
+                            required
+                            autocomplete="off"
+                            maxlength="32"
+                        >
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="customerId">Customer ID</label>
+                        <input 
+                            type="text" 
+                            id="customerId" 
+                            class="form-input" 
+                            placeholder="Enter your customer ID"
+                            required
+                            autocomplete="off"
+                        >
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="password">Password</label>
+                        <input 
+                            type="password" 
+                            id="password" 
+                            class="form-input" 
+                            placeholder="Enter your password"
+                            required
+                            autocomplete="current-password"
+                        >
+                    </div>
+
+                    <button type="submit" class="btn-login" id="loginBtn">
+                        <span id="loginBtnText">Login</span>
+                        <div class="loading-spinner" id="loginSpinner"></div>
+                    </button>
+                </form>
+
+                <p class="info-text">
+                    Credentials are created by the admin app
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main App Container -->
+    <div id="appContainer" class="app-container hidden">
+        <!-- Top Navigation Bar -->
+        <header class="top-bar">
+            <div class="top-left">
+                <button id="menuBtn" class="menu-btn" aria-label="Menu">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="3" y1="6" x2="21" y2="6"></line>
+                        <line x1="3" y1="12" x2="21" y2="12"></line>
+                        <line x1="3" y1="18" x2="21" y2="18"></line>
+                    </svg>
+                </button>
+                <h1 id="pageTitle">Home</h1>
+            </div>
+            <div class="top-right">
+                <button id="syncBtn" class="sync-btn" aria-label="Sync" title="Sync data">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="23 4 23 10 17 10"></polyline>
+                        <polyline points="1 20 1 14 7 14"></polyline>
+                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36M20.49 15a9 9 0 0 1-14.85 3.36"></path>
+                    </svg>
+                </button>
+                <div class="customer-name-display" id="customerNameDisplay">Customer</div>
+            </div>
+        </header>
+
+        <!-- Main Content Area -->
+        <main id="pageContent" class="page-content">
+            <!-- Dynamic page content will be loaded here -->
+        </main>
+
+        <!-- Bottom Navigation Bar -->
+        <nav class="bottom-nav">
+            <button class="nav-btn active" data-page="home" aria-label="Home">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" role="img" aria-hidden="true">
+                    <title>Home</title>
+                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                    <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                </svg>
+                <span class="nav-label">Home</span>
+            </button>
+            <button class="nav-btn" data-page="orders" aria-label="Orders">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" role="img" aria-hidden="true">
+                    <title>Orders</title>
+                    <circle cx="9" cy="21" r="1"></circle>
+                    <circle cx="20" cy="21" r="1"></circle>
+                    <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+                </svg>
+                <span class="nav-label">Orders</span>
+            </button>
+            <button class="nav-btn" data-page="profile" aria-label="Profile">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" role="img" aria-hidden="true">
+                    <title>Profile</title>
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="12" cy="7" r="4"></circle>
+                </svg>
+                <span class="nav-label">Profile</span>
+            </button>
+        </nav>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+    <!-- Customer App -->
+    <script src="customer.js"></script>
+</body>
+</html>
