@@ -143,7 +143,7 @@ const OrdersModule = {
         filteredOrders.forEach((order) => {
             const orderDate = this.formatDateDisplay((order.createdAt || '').split('T')[0]);
             const card = document.createElement('div');
-            card.style.cssText = 'padding: 14px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; border-left: 4px solid #667eea; transition: all 0.3s ease; cursor: default;';
+            card.style.cssText = 'padding: 14px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; border-left: 4px solid #667eea; transition: all 0.3s ease; cursor: pointer;';
             card.onmouseover = () => {
                 card.style.background = '#f3f4f6';
                 card.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.12)';
@@ -162,6 +162,11 @@ const OrdersModule = {
                 </div>
                 <div style="font-size: 12px; color: #6b7280;">${orderDate}</div>
             `;
+            card.addEventListener('click', (e) => {
+                // Only open view modal if not swiping
+                if (e.target.closest('button')) return;
+                this.showViewOrderModal(order);
+            });
             this.addSwipeToDelete(card, order.id);
             container.appendChild(card);
         });
@@ -552,6 +557,495 @@ const OrdersModule = {
         } catch (error) {
             console.error('Error deleting order:', error);
             alert('Failed to delete order');
+        }
+    },
+
+    async showViewOrderModal(order) {
+        const modal = document.createElement('div');
+        modal.id = 'viewOrderModal';
+        modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); display: flex; align-items: flex-end; z-index: 1000;';
+        
+        const orderDate = this.formatDateDisplay((order.createdAt || '').split('T')[0]);
+        const createdTime = order.createdAt ? new Date(order.createdAt).toLocaleTimeString() : 'N/A';
+        
+        // Find customer info
+        const customer = this.customers.find(c => c.id === order.customerId);
+        
+        modal.innerHTML = `
+            <div style="width: 100%; background: white; border-radius: 16px 16px 0 0; padding: 20px; max-height: 90vh; overflow-y: auto; animation: slideUp 0.3s ease;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2 style="font-size: 20px; font-weight: 700; color: #111827; margin: 0;">View Order</h2>
+                    <button id="closeViewModal" style="width: 28px; height: 28px; border: none; background: transparent; cursor: pointer; font-size: 24px; color: #9ca3af; padding: 0; line-height: 1;">×</button>
+                </div>
+
+                <div style="text-align: center; margin-bottom: 24px;">
+                    <div style="font-size: 18px; font-weight: 700; color: #111827; margin-bottom: 6px;"><strong>${order.customerName || 'Unknown'}</strong></div>
+                    <div style="font-size: 13px; color: #6b7280; margin-bottom: 8px;">${order.area || 'N/A'}</div>
+                    <div style="font-size: 13px; color: #374151; margin-bottom: 6px;">${orderDate} at ${createdTime}</div>
+                    <div style="font-size: 12px; color: #9ca3af;">${order.orderNumber || 'Order #' + order.id}</div>
+                </div>
+
+                <div style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+                    <div style="font-size: 15px; font-weight: 600; color: #374151; margin-bottom: 12px;">Products</div>
+                    
+                    <div style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr; gap: 8px; font-size: 13px; color: #6b7280; font-weight: 600; margin-bottom: 10px; text-align: center;">
+                        <div style="text-align: left;">Product</div>
+                        <div style="background: #d1fae5; padding: 4px; border-radius: 4px;">C</div>
+                        <div style="background: #ddd6fe; padding: 4px; border-radius: 4px;">P</div>
+                        <div>Price</div>
+                        <div>Total</div>
+                    </div>
+
+                    <div id="viewProductRows" style="max-height: 300px; overflow-y: auto;">
+                        ${(order.items || []).map(item => `
+                            <div style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr; gap: 8px; margin-bottom: 8px; align-items: center; padding: 12px; background: #f9fafb; border-radius: 6px; border: 1px solid #e5e7eb;">
+                                <div style="font-size: 13px; color: #111827; font-weight: 500;">${item.productName || 'Unknown'}</div>
+                                <div style="font-size: 13px; color: #6b7280; text-align: center; font-weight: 600;">${item.cartons || 0}</div>
+                                <div style="font-size: 13px; color: #6b7280; text-align: center; font-weight: 600;">${item.pcs || 0}</div>
+                                <div style="font-size: 13px; color: #6b7280; text-align: center; font-weight: 600;">৳${Math.round(item.price || 0)}</div>
+                                <div style="font-size: 13px; color: #111827; text-align: center; font-weight: 700;">৳${Math.round(item.total || 0)}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+
+                <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+                    <div style="font-size: 14px; font-weight: 600; color: #6b7280; margin-bottom: 8px;">Summary</div>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div style="font-size: 16px; font-weight: 700; color: #111827;">Total Amount</div>
+                        <div style="font-size: 18px; font-weight: 700; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">৳${Math.round(order.total || 0)}</div>
+                    </div>
+                </div>
+
+                ${order.saveAsCredit ? `
+                    <div style="background: #fef3c7; border: 1px solid #fbbf24; border-radius: 8px; padding: 12px; margin-bottom: 16px; display: flex; align-items: start; gap: 8px;">
+                        <div style="color: #92400e; font-size: 13px; flex: 1;">
+                            <div style="font-weight: 600; margin-bottom: 2px;">✓ Saved as Customer Credit</div>
+                            <div style="font-size: 12px;">This order has been added to the customer's credit balance</div>
+                        </div>
+                    </div>
+                ` : ''}
+
+                <div style="display: flex; gap: 10px;">
+                    <button type="button" id="editOrderBtn" style="flex: 1; padding: 14px; border: none; background: #f59e0b; border-radius: 8px; font-size: 15px; font-weight: 600; color: white; cursor: pointer; transition: all 0.3s ease;">Edit</button>
+                    <button type="button" id="closeViewBtn" style="flex: 1; padding: 14px; border: none; background: #6b7280; border-radius: 8px; font-size: 15px; font-weight: 600; color: white; cursor: pointer; transition: all 0.3s ease;">Close</button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        const closeModal = () => {
+            modal.style.animation = 'slideDown 0.3s ease';
+            setTimeout(() => modal.remove(), 300);
+        };
+
+        document.getElementById('closeViewModal').addEventListener('click', closeModal);
+        document.getElementById('closeViewBtn').addEventListener('click', closeModal);
+        document.getElementById('editOrderBtn').addEventListener('click', () => {
+            closeModal();
+            this.showEditOrderModal(order);
+        });
+
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) closeModal();
+        });
+
+        // Add slide animations if not already added
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideUp {
+                from {
+                    transform: translateY(100%);
+                    opacity: 0;
+                }
+                to {
+                    transform: translateY(0);
+                    opacity: 1;
+                }
+            }
+            @keyframes slideDown {
+                from {
+                    transform: translateY(0);
+                    opacity: 1;
+                }
+                to {
+                    transform: translateY(100%);
+                    opacity: 0;
+                }
+            }
+        `;
+        if (!document.querySelector('style[data-orders-modal]')) {
+            style.setAttribute('data-orders-modal', '');
+            document.head.appendChild(style);
+        }
+    },
+
+    async showEditOrderModal(order) {
+        // Ensure data is loaded
+        if (this.customers.length === 0 || this.products.length === 0 || this.areas.length === 0) {
+            await this.loadData();
+        }
+        
+        this.selectedProducts = order.items || [];
+        
+        const modal = document.createElement('div');
+        modal.id = 'editOrderModal';
+        modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); display: flex; align-items: flex-end; z-index: 1000;';
+        
+        modal.innerHTML = `
+            <div style="width: 100%; background: white; border-radius: 16px 16px 0 0; padding: 20px; max-height: 90vh; overflow-y: auto; animation: slideUp 0.3s ease;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2 style="font-size: 20px; font-weight: 700; color: #111827; margin: 0;">Edit Order</h2>
+                    <button id="closeEditModal" style="width: 28px; height: 28px; border: none; background: transparent; cursor: pointer; font-size: 24px; color: #9ca3af; padding: 0; line-height: 1;">×</button>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;">
+                    <div>
+                        <label style="display: block; font-size: 14px; font-weight: 600; color: #374151; margin-bottom: 6px;">Area</label>
+                        <select id="areaSelectEdit" style="width: 100%; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; background: white; color: #6b7280; box-sizing: border-box; cursor: pointer;">
+                            <option value="">Select area</option>
+                            ${this.areas.map(area => `<option value="${area.name}" ${area.name === order.area ? 'selected' : ''}>${area.name}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 14px; font-weight: 600; color: #374151; margin-bottom: 6px;">Customer</label>
+                        <select id="customerSelectEdit" style="width: 100%; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; background: white; color: #6b7280; box-sizing: border-box; cursor: pointer;">
+                            <option value="">Select customer</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 16px;">
+                    <label style="display: block; font-size: 14px; font-weight: 600; color: #374151; margin-bottom: 6px;">Order ID</label>
+                    <input type="text" id="orderIdEdit" readonly value="${order.orderNumber || 'Order #' + order.id}" style="width: 100%; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; background: #f9fafb; color: #6b7280; box-sizing: border-box;">
+                </div>
+
+                <div style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+                    <div style="font-size: 15px; font-weight: 600; color: #374151; margin-bottom: 12px;">Products</div>
+                    
+                    <div style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr; gap: 8px; font-size: 13px; color: #6b7280; font-weight: 600; margin-bottom: 10px; text-align: center;">
+                        <div style="text-align: left;">Product</div>
+                        <div style="background: #d1fae5; padding: 4px; border-radius: 4px;">C</div>
+                        <div style="background: #ddd6fe; padding: 4px; border-radius: 4px;">P</div>
+                        <div>Price</div>
+                        <div>Total</div>
+                    </div>
+
+                    <div id="productRowsEdit"></div>
+
+                    <button id="addProductBtnEdit" style="width: 100%; padding: 12px; margin-top: 12px; border: none; background: #3b82f6; color: white; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.3s ease;">
+                        + Add Product
+                    </button>
+                </div>
+
+                <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+                    <div style="font-size: 14px; font-weight: 600; color: #6b7280; margin-bottom: 8px;">Summary</div>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div style="font-size: 16px; font-weight: 700; color: #111827;">Total</div>
+                        <div id="orderTotalEdit" style="font-size: 18px; font-weight: 700; color: #111827;">0</div>
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 10px;">
+                    <button type="button" id="cancelEditBtn" style="flex: 1; padding: 14px; border: 1px solid #d1d5db; background: white; border-radius: 8px; font-size: 15px; font-weight: 600; color: #6b7280; cursor: pointer; transition: all 0.3s ease;">Cancel</button>
+                    <button type="button" id="saveEditBtn" style="flex: 1; padding: 14px; border: none; background: #3b82f6; border-radius: 8px; font-size: 15px; font-weight: 600; color: white; cursor: pointer; transition: all 0.3s ease;">Save Changes</button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        // Wait a moment for DOM to be ready
+        await new Promise(resolve => setTimeout(resolve, 50));
+
+        // Event listeners setup
+        const areaSelect = document.getElementById('areaSelectEdit');
+        const customerSelect = document.getElementById('customerSelectEdit');
+        
+        if (!areaSelect || !customerSelect) {
+            console.error('Modal elements not found');
+            alert('Error creating edit form');
+            return;
+        }
+        
+        // Populate customers initially (all customers)
+        customerSelect.innerHTML = '<option value="">Select customer</option>' +
+            this.customers.map(c => `<option value="${c.id}" ${c.id === order.customerId ? 'selected' : ''}>${c.name}</option>`).join('');
+        
+        areaSelect.addEventListener('change', (e) => {
+            const selectedArea = e.target.value;
+            
+            const filteredCustomers = selectedArea ? 
+                this.customers.filter(c => c.area === selectedArea) : 
+                this.customers;
+            
+            customerSelect.innerHTML = '<option value="">Select customer</option>' +
+                filteredCustomers.map(c => `<option value="${c.id}" ${c.id === order.customerId ? 'selected' : ''}>${c.name}</option>`).join('');
+            
+            // Keep the original customer selected if it matches the filtered list
+            customerSelect.value = order.customerId;
+        });
+
+        document.getElementById('addProductBtnEdit').addEventListener('click', () => this.addProductRowEdit());
+
+        const closeModal = () => {
+            modal.style.animation = 'slideDown 0.3s ease';
+            setTimeout(() => modal.remove(), 300);
+        };
+
+        document.getElementById('closeEditModal').addEventListener('click', closeModal);
+        document.getElementById('cancelEditBtn').addEventListener('click', closeModal);
+
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) closeModal();
+        });
+
+        document.getElementById('saveEditBtn').addEventListener('click', async () => {
+            await this.updateOrder(order.id);
+            closeModal();
+        });
+
+        // Add existing product rows
+        if (order.items && order.items.length > 0) {
+            order.items.forEach(item => this.addProductRowEdit(item));
+        } else {
+            this.addProductRowEdit();
+        }
+
+        // Add slide animations
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideUp {
+                from {
+                    transform: translateY(100%);
+                    opacity: 0;
+                }
+                to {
+                    transform: translateY(0);
+                    opacity: 1;
+                }
+            }
+            @keyframes slideDown {
+                from {
+                    transform: translateY(0);
+                    opacity: 1;
+                }
+                to {
+                    transform: translateY(100%);
+                    opacity: 0;
+                }
+            }
+        `;
+        if (!document.querySelector('style[data-orders-modal]')) {
+            style.setAttribute('data-orders-modal', '');
+            document.head.appendChild(style);
+        }
+    },
+
+    addProductRowEdit(item = null) {
+        const container = document.getElementById('productRowsEdit');
+        if (!container) return;
+        
+        const rowId = 'product-' + Date.now();
+        
+        const row = document.createElement('div');
+        row.id = rowId;
+        row.style.cssText = 'display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr; gap: 8px; margin-bottom: 8px; align-items: center;';
+        
+        row.innerHTML = `
+            <select class="product-select-edit" style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; background: white; color: #374151; box-sizing: border-box;">
+                <option value="">Select</option>
+                ${this.products.map(p => `<option value="${p.id}" data-price="${p.price}" data-pcs="${p.pcs || 1}">${p.name}</option>`).join('')}
+            </select>
+            <input type="number" class="product-carton-edit" min="0" value="${item ? item.cartons || 0 : 0}" style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; text-align: center; box-sizing: border-box;">
+            <input type="number" class="product-packet-edit" min="0" value="${item ? item.pcs || 0 : 0}" style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; text-align: center; box-sizing: border-box;">
+            <input type="number" class="product-price-edit" min="0" value="${item ? item.price || 0 : 0}" style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; text-align: center; box-sizing: border-box;">
+            <div class="product-total-edit" style="padding: 8px; font-size: 13px; text-align: center; font-weight: 600; color: #111827;">${item ? Math.round(item.total || 0) : 0}</div>
+        `;
+        
+        container.appendChild(row);
+        
+        // Set product selection AFTER appending to DOM
+        const select = row.querySelector('.product-select-edit');
+        if (item && item.productId) {
+            // Ensure proper type comparison
+            select.value = String(item.productId);
+        }
+        
+        const carton = row.querySelector('.product-carton-edit');
+        const packet = row.querySelector('.product-packet-edit');
+        const price = row.querySelector('.product-price-edit');
+        const total = row.querySelector('.product-total-edit');
+        
+        // Use arrow function to preserve 'this' context
+        const updateTotal = () => {
+            if (!select || !carton || !packet || !price || !total) return;
+            
+            const selectedOption = select.options[select.selectedIndex];
+            if (!selectedOption || !selectedOption.value) return;
+            
+            const pricePerPiece = parseFloat(selectedOption.dataset.price) || 0;
+            const pcsPerCarton = parseFloat(selectedOption.dataset.pcs) || 1;
+            
+            // Only auto-fill price if it's empty (0) or when product changes and wasn't manually set
+            if (!item && price.value == 0) {
+                price.value = pricePerPiece;
+            } else if (item && select.dataset.lastSelected !== select.value) {
+                // If editing existing item and product is changed, auto-fill new product's price
+                price.value = pricePerPiece;
+            }
+            select.dataset.lastSelected = select.value;
+            
+            const cartonQty = parseFloat(carton.value) || 0;
+            const packetQty = parseFloat(packet.value) || 0;
+            const currentPrice = parseFloat(price.value) || 0;
+            
+            // Correct calculation: (cartons × pcs/carton + packets) × price
+            const totalPcs = (cartonQty * pcsPerCarton) + packetQty;
+            const totalPrice = totalPcs * currentPrice;
+            
+            total.textContent = Math.round(totalPrice);
+            this.updateOrderTotalEdit();
+        };
+        
+        select.addEventListener('change', updateTotal);
+        carton.addEventListener('input', updateTotal);
+        packet.addEventListener('input', updateTotal);
+        price.addEventListener('input', updateTotal);
+        
+        // Trigger update if item exists
+        if (item) {
+            updateTotal();
+        }
+    },
+
+    updateOrderTotalEdit() {
+        const container = document.getElementById('productRowsEdit');
+        if (!container) return;
+        const totals = Array.from(container.querySelectorAll('.product-total-edit'));
+        const sum = totals.reduce((acc, div) => acc + (parseFloat(div.textContent) || 0), 0);
+        const totalElement = document.getElementById('orderTotalEdit');
+        if (totalElement) {
+            totalElement.textContent = sum.toFixed(0);
+        }
+    },
+
+    async updateOrder(orderId) {
+        try {
+            const area = document.getElementById('areaSelectEdit').value;
+            const customerId = parseInt(document.getElementById('customerSelectEdit').value);
+            const customerSelect = document.getElementById('customerSelectEdit');
+            
+            if (!customerId || customerId === 0) {
+                alert('Please select a customer');
+                return;
+            }
+            
+            // Get customer name from the selected option
+            const customerName = customerSelect.options[customerSelect.selectedIndex].text;
+            
+            const products = [];
+            const rows = document.getElementById('productRowsEdit').children;
+            
+            for (const row of rows) {
+                const select = row.querySelector('.product-select-edit');
+                if (!select) continue;
+                
+                const productId = select.value;
+                if (!productId) continue;
+                
+                const selectedOption = select.options[select.selectedIndex];
+                const pcsPerCarton = parseFloat(selectedOption.dataset.pcs) || 1;
+                
+                const carton = parseFloat(row.querySelector('.product-carton-edit').value) || 0;
+                const packet = parseFloat(row.querySelector('.product-packet-edit').value) || 0;
+                const price = parseFloat(row.querySelector('.product-price-edit').value) || 0;
+                const total = parseFloat(row.querySelector('.product-total-edit').textContent) || 0;
+                
+                if (carton > 0 || packet > 0) {
+                    products.push({
+                        productId,
+                        productName: select.options[select.selectedIndex].text,
+                        cartons: carton,
+                        pcs: packet,
+                        price,
+                        pcsPerCarton,
+                        total,
+                        totalPrice: total
+                    });
+                }
+            }
+            
+            if (products.length === 0) {
+                alert('Please add at least one product');
+                return;
+            }
+            
+            const totalAmount = parseFloat(document.getElementById('orderTotalEdit').textContent) || 0;
+            
+            // Get the original order to preserve createdAt and other fields
+            const originalOrder = this.orders.find(o => o.id === orderId);
+            if (!originalOrder) {
+                alert('Order not found');
+                return;
+            }
+            
+            const updatedOrder = {
+                id: orderId,
+                orderNumber: originalOrder.orderNumber,
+                area,
+                customerId,
+                customerName: customerName,
+                items: products,
+                total: totalAmount,
+                createdAt: originalOrder.createdAt,
+                saveAsCredit: originalOrder.saveAsCredit || false,
+                paidAmount: originalOrder.paidAmount || 0,
+                paymentHistory: originalOrder.paymentHistory || [],
+                date: originalOrder.date  // Preserve date field if it exists
+            };
+            
+            await DB.update('orders', updatedOrder);
+            
+            // If order was saved as credit, update the credit entry as well
+            if (updatedOrder.saveAsCredit) {
+                try {
+                    // Get all credits to find the one linked to this order
+                    const allCredits = await DB.getAll('credits') || [];
+                    const linkedCredit = allCredits.find(c => c.orderId === orderId);
+                    
+                    if (linkedCredit) {
+                        // Update the credit with new data while preserving payment info
+                        const updatedCredit = {
+                            id: linkedCredit.id,
+                            customerId,
+                            customerName: customerName,
+                            amount: totalAmount,
+                            paidAmount: linkedCredit.paidAmount || 0,
+                            paymentHistory: linkedCredit.paymentHistory || [],
+                            type: 'order',
+                            orderId: orderId,
+                            orderNumber: originalOrder.orderNumber,
+                            date: linkedCredit.date || this.selectedDate,
+                            deleted: linkedCredit.deleted || false
+                        };
+                        await DB.update('credits', updatedCredit);
+                    }
+                } catch (error) {
+                    console.error('Error updating credit:', error);
+                    // Don't fail the order update if credit update fails
+                }
+            }
+            
+            await this.loadOrders();
+            
+            if (window.App && window.App.showToast) {
+                window.App.showToast('Order updated successfully', 'success');
+            }
+        } catch (error) {
+            console.error('Error updating order:', error);
+            alert('Failed to update order: ' + error.message);
         }
     },
 
