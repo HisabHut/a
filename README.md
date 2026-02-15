@@ -22,11 +22,11 @@ A customer-facing application that allows customers to view their orders, credit
 - **Settings** - Application configuration and preferences
 
 ### Customer App Features
-- **Dashboard + Store** - View statistics and browse available products
-- **Orders** - View order history with delivery dates and status
-- **Credits** - View-only credit balance and transaction history
-- **Profile/Login** - Customer authentication with Company ID, Customer ID, and Password
-- **Bottom Navigation** - Mobile-friendly navigation bar for easy access
+- **Home + Store** - View order statistics and browse the online e-commerce store
+- **Orders** - View order history with delivery dates and status tracking
+- **Customer Details** - View-only customer information, credit balance, and transaction history
+- **Login/Logout** - Customer authentication with Company ID, Customer ID, and Password via overlay
+- **Bottom Navigation** - Mobile-friendly 3-item navigation bar (Home, Orders, Customer Details)
 
 ### Key Features
 - ✅ Single Page Application (SPA) architecture
@@ -87,12 +87,11 @@ php -S localhost:8080
 - Active page is highlighted in the sidebar
 
 ### Customer App Usage
-- **Login**: Customers login with Company ID, Customer ID, and Password (credentials created by admin)
-- **Navigation**: Use the bottom navigation bar to switch between pages
-- **Dashboard**: View order statistics and browse the store
-- **Orders**: View order history with delivery dates and status
-- **Credits**: View credit balance and transaction history (read-only)
-- **Profile**: View account details or login/logout
+- **Login**: Customers login with Company ID, Customer ID, and Password via overlay (credentials created by admin)
+- **Navigation**: Use the bottom navigation bar (3 items) to switch between pages
+- **Home**: View order statistics and browse the online e-commerce store with available products
+- **Orders**: View order history with delivery dates and status tracking
+- **Customer Details**: View customer information, credit balance, and transaction history (read-only). Logout button available here.
 
 ### Responsive Behavior
 - **Desktop (>768px)**: Full sidebar with icons and labels
