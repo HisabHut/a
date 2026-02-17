@@ -12,66 +12,111 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // ==================== SHARED COLLECTIONS ====================
-    // These are readable by all (employees can see them)
-    // Writable by authenticated users (admin writes them)
+    // ==================== ADMIN/OWNER FULL ACCESS ====================
+    // Owner has full access to all their company data
+    // This is the broad rule that covers all collections
     
-    match /users/{companyId}/employees/{document=**} {
+    match /users/{ownerId}/{document=**} {
+      // Owner (authenticated admin) can read/write ALL their data
+      allow read, write: if request.auth != null && request.auth.uid == ownerId;
+    }
+    
+    // ==================== EMPLOYEE READ ACCESS OVERRIDES ====================
+    // These rules OVERRIDE the above for specific collections
+    // Employees can READ these collections (but still can't write)
+    
+    match /users/{ownerId}/employees/{employeeId} {
+      // Anyone can read employee profiles (needed for employee app login)
       allow read: if true;
-      allow write: if request.auth != null;
+      // Write still controlled by admin rule above
     }
     
-    match /users/{companyId}/attendance/{document=**} {
+    match /users/{ownerId}/attendance/{attendanceId} {
+      // Anyone can read attendance (employee app filters by their ID)
       allow read: if true;
-      allow write: if request.auth != null;
+      // Write still controlled by admin rule above
     }
     
-    match /users/{companyId}/delivery/{document=**} {
+    match /users/{ownerId}/delivery/{deliveryId} {
+      // Anyone can read deliveries (employee app filters by their ID)  
       allow read: if true;
-      allow write: if request.auth != null;
+      // Write still controlled by admin rule above
     }
     
-    match /users/{companyId}/profile/{document=**} {
+    match /users/{ownerId}/advances/{advanceId} {
+      // Anyone can read advances (employee app filters by their ID)
       allow read: if true;
-      allow write: if request.auth != null;
+      // Write still controlled by admin rule above
     }
     
-    match /users/{companyId}/credits/{document=**} {
+    match /users/{ownerId}/productAdvances/{productAdvanceId} {
+      // Anyone can read product advances (employee app filters by their ID)
       allow read: if true;
-      allow write: if request.auth != null;
+      // Write still controlled by admin rule above
     }
     
-    match /users/{companyId}/advances/{document=**} {
+    match /users/{ownerId}/repayments/{repaymentId} {
+      // Anyone can read repayments (employee app filters by their ID)
       allow read: if true;
-      allow write: if request.auth != null;
+      // Write still controlled by admin rule above
     }
     
-    match /users/{companyId}/stock/{document=**} {
+    match /users/{ownerId}/history/{historyId} {
+      // Anyone can read delivery history (for DSR verification)
       allow read: if true;
-      allow write: if request.auth != null;
+      // Write still controlled by admin rule above
     }
     
-    // ==================== ADMIN PRIVATE COLLECTIONS ====================
-    // Private admin data - only accessible by that admin's UID
-    
-    match /users/{userId}/expenses/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+    match /users/{ownerId}/stock/{stockId} {
+      // Anyone can read stock (for reference)
+      allow read: if true;
+      // Write still controlled by admin rule above
     }
     
-    match /users/{userId}/history/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+    match /users/{ownerId}/credits/{creditId} {
+      // Anyone can read credits
+      allow read: if true;
+      // Write still controlled by admin rule above  
     }
     
-    match /users/{userId}/settings/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+    match /users/{ownerId}/creditPayments/{paymentId} {
+      // Anyone can read credit payments
+      allow read: if true;
+      // Write still controlled by admin rule above
     }
     
-    match /users/{userId}/deliveries/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+    match /users/{ownerId}/salaryReports/{salaryReportId} {
+      // Anyone can read salary reports (employee app filters by their ID)
+      allow read: if true;
+      // Write still controlled by admin rule above
     }
     
-    match /users/{userId}/salaryReports/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+    // ==================== CUSTOMER READ ACCESS OVERRIDES ====================
+    // These rules enable customer app authentication and data access
+    // Customers can READ these collections (unauthenticated)
+    
+    match /users/{ownerId}/customers/{customerId} {
+      // Anyone can read customers (needed for customer app login verification)
+      allow read: if true;
+      // Write still controlled by admin rule above
+    }
+    
+    match /users/{ownerId}/products/{productId} {
+      // Anyone can read products (customer app browses products)
+      allow read: if true;
+      // Write still controlled by admin rule above
+    }
+    
+    match /users/{ownerId}/areas/{areaId} {
+      // Anyone can read areas (customer/OC app reference)
+      allow read: if true;
+      // Write still controlled by admin rule above
+    }
+    
+    match /users/{ownerId}/orders/{orderId} {
+      // Anyone can read orders (customer app views orders)
+      allow read: if true;
+      // Write still controlled by admin rule above
     }
   }
 }

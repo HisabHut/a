@@ -34,12 +34,14 @@ const App = {
     onFirebaseReady() {
         console.log('📡 Firebase is ready, enabling sync features...');
         
-        // Initialize sync status indicator after SyncModule loads
-        setTimeout(() => {
+        // Initialize sync module
+        setTimeout(async () => {
             if (window.SyncModule) {
-                window.SyncModule.checkSyncStatus();
+                console.log('🔄 Initializing SyncModule...');
+                await window.SyncModule.init();
+                await window.SyncModule.checkSyncStatus();
             }
-        }, 1000);
+        }, 500);
     },
 
     setupNavigation() {

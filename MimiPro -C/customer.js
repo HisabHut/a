@@ -50,7 +50,7 @@ class HomePage {
 
                 <div class="section" style="margin-top: 2rem;">
                     <h3 class="section-title">Available Products</h3>
-                    <div class="product-grid">
+                    <div id="productGrid" class="product-grid">
                         ${products.map(product => this.renderProductCard(product)).join('')}
                     </div>
                 </div>
@@ -81,13 +81,22 @@ class HomePage {
 
     static async getCustomerData(session) {
         try {
-            const doc = await db.collection('users')
+            let doc = await db.collection('users')
                 .doc(session.companyId)
                 .collection('customers')
                 .doc(session.customerId)
                 .get();
 
-            if (!doc.exists) return null;
+            if (!doc.exists) {
+                const snapshot = await db.collection('users')
+                    .doc(session.companyId)
+                    .collection('customers')
+                    .where('customerId', '==', session.customerId)
+                    .limit(1)
+                    .get();
+                if (snapshot.empty) return null;
+                doc = snapshot.docs[0];
+            }
 
             const data = doc.data();
             return {
@@ -124,7 +133,47 @@ class HomePage {
             return [];
         }
     }
+
+    static updateProductsUI(products) {
+        const grid = document.getElementById('productGrid');
+        if (!grid) return;
+
+        if (!products || products.length === 0) {
+            grid.innerHTML = '<div style="padding: 12px; color: #6c757d;">No products available</div>';
+            return;
+        }
+
+        grid.innerHTML = products.map(product => this.renderProductCard(product)).join('');
+    }
+
+    static startRealtimeProducts(session) {
+        HomePage.stopRealtimeProducts();
+
+        HomePage.productsUnsubscribe = db.collection('users')
+            .doc(session.companyId)
+            .collection('products')
+            .where('active', '==', true)
+            .onSnapshot(snapshot => {
+                const products = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data(),
+                    stock: doc.data().stock || 0
+                }));
+                HomePage.updateProductsUI(products);
+            }, error => {
+                console.error('Realtime products listener error:', error);
+            });
+    }
+
+    static stopRealtimeProducts() {
+        if (HomePage.productsUnsubscribe) {
+            HomePage.productsUnsubscribe();
+            HomePage.productsUnsubscribe = null;
+        }
+    }
 }
+
+HomePage.productsUnsubscribe = null;
 
 class OrdersPage {
     static async render() {
@@ -221,6 +270,368 @@ class OrdersPage {
     }
 }
 
+class CreditsPage {
+    static async render() {
+        const session = getCustomerSession();
+        const customerData = await this.getCustomerData(session);
+        const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM format
+        
+        if (!customerData) {
+            return `
+                <section class="page-section">
+                    <h2>Credits</h2>
+                    <p>Unable to load customer data</p>
+                </section>
+            `;
+        }
+
+        // Calculate outstanding balance across all months
+        const allCredits = await this.getAllCredits(session, customerData.customerKey);
+        const totalCredit = allCredits.reduce((sum, c) => sum + (c.amount || 0), 0);
+        const totalPaid = allCredits.reduce((sum, c) => sum + (c.paidAmount || 0), 0);
+        const totalBalance = totalCredit - totalPaid;
+
+        const monthCredits = await this.getCreditsForMonth(session, customerData.customerKey, currentMonth);
+
+        CreditsPage.cachedCredits = allCredits;
+        CreditsPage.cachedCustomerData = customerData;
+        
+        return `
+            <section class="page-section">
+                <div class="list-container">
+                    <!-- Back Button & Title -->
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #e2e8f0;">
+                        <div style="font-size: 14px; font-weight: 600; color: #1f2937;">Customer Details</div>
+                    </div>
+
+                    <!-- Customer Header Card -->
+                    <div style="text-align: center; margin-bottom: 16px; padding: 14px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 8px; color: white;">
+                        <div style="font-size: 18px; font-weight: 700; margin-bottom: 4px;">${customerData.name || 'Unknown'}</div>
+                        <div style="font-size: 12px; opacity: 0.9; margin-bottom: 12px; letter-spacing: 0.5px;">${customerData.loginId || customerData.customerId || session.customerId}</div>
+                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; text-align: left;">
+                            <div style="background: rgba(255,255,255,0.15); border-radius: 6px; padding: 8px 10px;">
+                                <div style="font-size: 10px; opacity: 0.8; margin-bottom: 2px;">Area</div>
+                                <div style="font-size: 13px; font-weight: 600;">${customerData.area || 'N/A'}</div>
+                            </div>
+                            <div style="background: rgba(255,255,255,0.15); border-radius: 6px; padding: 8px 10px;">
+                                <div style="font-size: 10px; opacity: 0.8; margin-bottom: 2px;">Mobile</div>
+                                <div style="font-size: 13px; font-weight: 600;">${customerData.phone || 'N/A'}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Month Filter -->
+                    <div style="display: flex; gap: 8px; margin-bottom: 16px; align-items: center; justify-content: center;">
+                        <label style="font-size: 12px; font-weight: 600; color: #6c757d;">Filter by Month/Year</label>
+                        <input 
+                            type="month" 
+                            id="creditMonthFilter" 
+                            style="padding: 8px 12px; border: 1px solid #e9ecef; border-radius: 6px; font-size: 12px; cursor: pointer;"
+                            value="${currentMonth}"
+                        />
+                    </div>
+
+                    <!-- Total Outstanding -->
+                    <div style="margin-bottom: 16px; padding: 12px; background: #fef3c7; border-left: 4px solid #f59e0b; border-radius: 6px;">
+                        <div style="font-size: 12px; color: #92400e; font-weight: 600; margin-bottom: 4px;">Total Outstanding (All Time)</div>
+                        <div id="totalOutstandingValue" style="font-size: 24px; font-weight: 700; color: #b45309;">₹${totalBalance.toLocaleString()}</div>
+                    </div>
+
+                    <!-- Credits for Selected Month -->
+                    <h3 style="font-size: 14px; font-weight: 600; color: #2c3e50; margin: 16px 0 12px 0;">Credits for Selected Month</h3>
+                    <div id="monthCreditsList" style="display: flex; flex-direction: column; gap: 10px;">
+                        ${monthCredits.length === 0 ? `
+                            <div style="text-align: center; padding: 20px; color: #6c757d; font-size: 13px;">
+                                No credits for this month
+                            </div>
+                        ` : monthCredits.map(credit => this.renderCreditCard(credit, session)).join('')}
+                    </div>
+                </div>
+            </section>
+        `;
+    }
+
+    static renderCreditCard(credit, session) {
+        const creditBalance = (credit.amount || 0) - (credit.paidAmount || 0);
+        const date = CreditsPage.formatCreditDate(credit);
+        const orderInfo = credit.orderNumber ? `<div style="font-size: 11px; color: #667eea; font-weight: 600;">Order: ${credit.orderNumber}</div>` : '';
+        const paymentInfo = credit.paidAmount > 0 ? `<div style="font-size: 11px; color: #28a745; margin-top: 4px;">💰 Paid: ₹${(credit.paidAmount || 0).toLocaleString()}</div>` : '';
+        
+        return `
+            <div class="list-item" style="display: block; padding: 12px; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; cursor: pointer; transition: all 0.2s;" onclick="CreditsPage.showCreditDetails('${credit.id}', '${session.companyId}', '${session.customerId}')">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                    <div>
+                        <div style="font-size: 12px; color: #6c757d; margin-bottom: 4px;">📅 ${date}</div>
+                        ${orderInfo}
+                    </div>
+                    <div style="text-align: right;">
+                        <div style="font-size: 14px; font-weight: 700; color: #1f2937; margin-bottom: 4px;">₹${(credit.amount || 0).toLocaleString()}</div>
+                        <div style="font-size: 11px; color: ${creditBalance > 0 ? '#dc3545' : '#28a745'}; font-weight: 600;">Balance: ₹${creditBalance.toLocaleString()}</div>
+                    </div>
+                </div>
+                ${paymentInfo}
+                ${credit.notes ? `<div style="font-size: 11px; color: #6c757d; margin-top: 8px;">📝 ${credit.notes}</div>` : ''}
+            </div>
+        `;
+    }
+
+    static async showCreditDetails(creditId, companyId, customerId) {
+        try {
+            const creditDoc = await db.collection('users')
+                .doc(companyId)
+                .collection('credits')
+                .doc(creditId)
+                .get();
+            
+            if (!creditDoc.exists) {
+                alert('Credit details not found');
+                return;
+            }
+
+            const credit = creditDoc.data();
+            const balance = (credit.amount || 0) - (credit.paidAmount || 0);
+            const paymentHistory = Array.isArray(credit.paymentHistory) ? credit.paymentHistory : [];
+
+            let details = `
+                <div style="margin-bottom: 16px; padding: 12px; background: #f8f9fa; border-radius: 8px;">
+                    <div style="font-size: 13px; font-weight: 600; color: #1f2937; margin-bottom: 8px;">💳 Credit Summary</div>
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; font-size: 12px;">
+                        <div>
+                            <span style="color: #6c757d;">Amount:</span>
+                            <div style="font-weight: 600; color: #1f2937;">₹${(credit.amount || 0).toLocaleString()}</div>
+                        </div>
+                        <div>
+                            <span style="color: #6c757d;">Paid:</span>
+                            <div style="font-weight: 600; color: #28a745;">₹${(credit.paidAmount || 0).toLocaleString()}</div>
+                        </div>
+                        <div style="grid-column: 1 / -1;">
+                            <span style="color: #6c757d;">Balance:</span>
+                            <div style="font-weight: 700; color: ${balance > 0 ? '#dc3545' : '#28a745'}; font-size: 14px;">₹${balance.toLocaleString()}</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            if (paymentHistory.length > 0) {
+                details += `
+                    <div>
+                        <div style="font-size: 13px; font-weight: 600; color: #1f2937; margin-bottom: 8px;">💰 Payment History</div>
+                        ${paymentHistory.map(payment => `
+                            <div style="padding: 8px; background: #f8f9fa; border-radius: 6px; margin-bottom: 6px; font-size: 12px;">
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                                    <span style="color: #6c757d;">${payment.date || 'N/A'}</span>
+                                    <span style="font-weight: 700; color: #28a745;">₹${(payment.amount || 0).toLocaleString()}</span>
+                                </div>
+                                ${payment.method ? `<div style="font-size: 11px; color: #667eea;">Method: ${payment.method}</div>` : ''}
+                                ${payment.notes ? `<div style="font-size: 11px; color: #6c757d;">Note: ${payment.notes}</div>` : ''}
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            } else {
+                details += '<div style="padding: 12px; background: #fef3c7; border-radius: 6px; font-size: 12px; color: #92400e;">No payments recorded</div>';
+            }
+
+            // Show as modal-like overlay
+            const detailsHtml = `
+                <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: flex-end; z-index: 1000;">
+                    <div style="width: 100%; background: white; border-radius: 16px 16px 0 0; padding: 20px; max-height: 90vh; overflow-y: auto;  animation: slideUp 0.3s ease;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                            <h2 style="font-size: 18px; font-weight: 700; color: #111827; margin: 0;">Credit Details</h2>
+                            <button onclick="this.parentElement.parentElement.parentElement.remove()" style="width: 28px; height: 28px; border: none; background: transparent; cursor: pointer; font-size: 24px; color: #9ca3af;">×</button>
+                        </div>
+                        ${details}
+                    </div>
+                </div>
+            `;
+
+            const modal = document.createElement('div');
+            modal.innerHTML = detailsHtml;
+            modal.onclick = (e) => {
+                if (e.target === modal.firstElementChild) modal.remove();
+            };
+            document.body.appendChild(modal);
+
+        } catch (error) {
+            console.error('Error fetching credit details:', error);
+            alert('Error loading credit details');
+        }
+    }
+
+    static async getCustomerData(session) {
+        try {
+            const doc = await db.collection('users')
+                .doc(session.companyId)
+                .collection('customers')
+                .doc(session.customerId)
+                .get();
+
+            if (!doc.exists) return null;
+
+            const data = doc.data();
+            const docId = doc.id;
+            const numericId = data.id || (docId && !isNaN(Number(docId)) ? Number(docId) : null);
+            return {
+                name: data.name || 'Customer',
+                email: data.email || '',
+                phone: data.phone || '',
+                area: data.area || '',
+                loginId: data.loginId || data.customerId || '',
+                customerId: data.customerId || '',
+                customerKey: numericId || data.customerId || session.customerId
+            };
+        } catch (error) {
+            console.error('Error fetching customer data:', error);
+            return null;
+        }
+    }
+
+    static async getAllCredits(session, customerKey) {
+        try {
+            const queryRef = CreditsPage.buildCreditsQuery(session, customerKey);
+            const snapshot = await queryRef.get();
+
+            return snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+        } catch (error) {
+            console.error('Error fetching all credits:', error);
+            return [];
+        }
+    }
+
+    static async getCreditsForMonth(session, customerKey, monthStr) {
+        try {
+            const queryRef = CreditsPage.buildCreditsQuery(session, customerKey);
+            const snapshot = await queryRef.get();
+
+            // Filter by month string in client since Firestore query is simpler
+            return snapshot.docs
+                .map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }))
+                .filter(credit => CreditsPage.getCreditMonthKey(credit) === monthStr)
+                .sort((a, b) => CreditsPage.getCreditSortKey(b).localeCompare(CreditsPage.getCreditSortKey(a)));
+        } catch (error) {
+            console.error('Error fetching credits for month:', error);
+            return [];
+        }
+    }
+
+    static buildCreditsQuery(session, customerKey) {
+        const creditsCollection = db.collection('users')
+            .doc(session.companyId)
+            .collection('credits');
+
+        const values = [customerKey, session.customerId]
+            .filter(value => value !== undefined && value !== null && value !== '')
+            .filter((value, index, arr) => arr.indexOf(value) === index);
+
+        if (values.length === 0) {
+            return creditsCollection; // Guard clause for empty values
+        }
+        if (values.length > 1) {
+            return creditsCollection.where('customerId', 'in', values);
+        }
+
+        return creditsCollection.where('customerId', '==', values[0]);
+    }
+
+    static updateCreditsUI(credits, session, monthStr) {
+        CreditsPage.cachedCredits = credits || [];
+
+        const totalCredit = CreditsPage.cachedCredits.reduce((sum, c) => sum + (c.amount || 0), 0);
+        const totalPaid = CreditsPage.cachedCredits.reduce((sum, c) => sum + (c.paidAmount || 0), 0);
+        const totalBalance = totalCredit - totalPaid;
+
+        const totalOutstandingEl = document.getElementById('totalOutstandingValue');
+        if (totalOutstandingEl) {
+            totalOutstandingEl.textContent = `₹${totalBalance.toLocaleString()}`;
+        }
+
+        const monthCredits = CreditsPage.cachedCredits
+            .filter(credit => CreditsPage.getCreditMonthKey(credit) === monthStr)
+            .sort((a, b) => CreditsPage.getCreditSortKey(b).localeCompare(CreditsPage.getCreditSortKey(a)));
+
+        const creditsList = document.getElementById('monthCreditsList');
+        if (!creditsList) return;
+
+        if (monthCredits.length === 0) {
+            creditsList.innerHTML = `
+                <div style="text-align: center; padding: 20px; color: #6c757d; font-size: 13px;">
+                    No credits for this month
+                </div>
+            `;
+            return;
+        }
+
+        creditsList.innerHTML = monthCredits.map(credit => CreditsPage.renderCreditCard(credit, session)).join('');
+    }
+
+    static startRealtimeListener(session, customerKey) {
+        CreditsPage.stopRealtimeListener();
+
+        const queryRef = CreditsPage.buildCreditsQuery(session, customerKey);
+        CreditsPage.realtimeUnsubscribe = queryRef.onSnapshot(snapshot => {
+            const credits = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+
+            const monthFilter = document.getElementById('creditMonthFilter');
+            const monthStr = monthFilter ? monthFilter.value : new Date().toISOString().slice(0, 7);
+            CreditsPage.updateCreditsUI(credits, session, monthStr);
+        }, error => {
+            console.error('Realtime credits listener error:', error);
+        });
+    }
+
+    static stopRealtimeListener() {
+        if (CreditsPage.realtimeUnsubscribe) {
+            CreditsPage.realtimeUnsubscribe();
+            CreditsPage.realtimeUnsubscribe = null;
+        }
+    }
+
+    static getCreditSortKey(credit) {
+        const date = CreditsPage.getCreditDateObject(credit);
+        return date ? date.toISOString() : '';
+    }
+
+    static getCreditMonthKey(credit) {
+        const date = CreditsPage.getCreditDateObject(credit);
+        if (!date) return '';
+        return date.toISOString().slice(0, 7);
+    }
+
+    static formatCreditDate(credit) {
+        const date = CreditsPage.getCreditDateObject(credit);
+        if (!date) return '';
+        return date.toLocaleDateString('en-IN');
+    }
+
+    static getCreditDateObject(credit) {
+        if (!credit || !credit.date) return null;
+        if (typeof credit.date === 'string') {
+            const parsed = new Date(credit.date);
+            return isNaN(parsed.getTime()) ? null : parsed;
+        }
+        if (credit.date.toDate) {
+            return credit.date.toDate();
+        }
+        if (credit.date instanceof Date) {
+            return credit.date;
+        }
+        return null;
+    }
+}
+
+CreditsPage.realtimeUnsubscribe = null;
+CreditsPage.cachedCredits = [];
+CreditsPage.cachedCustomerData = null;
+
 class ProfilePage {
     static async render() {
         const session = getCustomerSession();
@@ -303,6 +714,7 @@ const App = {
     pages: {
         home: HomePage,
         orders: OrdersPage,
+        credits: CreditsPage,
         profile: ProfilePage
     },
 
@@ -366,6 +778,13 @@ const App = {
             return;
         }
 
+        if (this.currentPage === 'home' && pageName !== 'home') {
+            HomePage.stopRealtimeProducts();
+        }
+        if (this.currentPage === 'credits' && pageName !== 'credits') {
+            CreditsPage.stopRealtimeListener();
+        }
+
         this.currentPage = pageName;
 
         // Update active nav button
@@ -382,6 +801,7 @@ const App = {
         const titleMap = {
             home: 'Home',
             orders: 'Orders',
+            credits: 'Credits',
             profile: 'Profile'
         };
         document.getElementById('pageTitle').textContent = titleMap[pageName] || 'Home';
@@ -393,20 +813,49 @@ const App = {
             pageContent.innerHTML = html;
 
             // Setup page-specific event listeners
-            this.setupPageEventListeners(pageName);
+            await this.setupPageEventListeners(pageName);
         } catch (error) {
             console.error('Error rendering page:', error);
             document.getElementById('pageContent').innerHTML = '<p>Error loading page content</p>';
         }
     },
 
-    setupPageEventListeners(pageName) {
+    async setupPageEventListeners(pageName) {
         if (pageName === 'profile') {
             const logoutBtn = document.getElementById('logoutBtn');
             if (logoutBtn) {
                 logoutBtn.addEventListener('click', () => {
                     logout();
                 });
+            }
+        }
+        
+        if (pageName === 'credits') {
+            const monthFilter = document.getElementById('creditMonthFilter');
+            if (monthFilter) {
+                monthFilter.addEventListener('change', async (e) => {
+                    const session = getCustomerSession();
+                    const selectedMonth = e.target.value; // YYYY-MM
+                    const customerData = CreditsPage.cachedCustomerData || await CreditsPage.getCustomerData(session);
+                    const credits = CreditsPage.cachedCredits.length > 0
+                        ? CreditsPage.cachedCredits
+                        : await CreditsPage.getAllCredits(session, customerData?.customerKey || session.customerId);
+
+                    CreditsPage.updateCreditsUI(credits, session, selectedMonth);
+                });
+            }
+
+            const session = getCustomerSession();
+            const customerData = CreditsPage.cachedCustomerData || await CreditsPage.getCustomerData(session);
+            if (customerData) {
+                CreditsPage.startRealtimeListener(session, customerData.customerKey || session.customerId);
+            }
+        }
+
+        if (pageName === 'home') {
+            const session = getCustomerSession();
+            if (session) {
+                HomePage.startRealtimeProducts(session);
             }
         }
     },
@@ -476,7 +925,7 @@ const App = {
             const passwordHash = await hashPassword(password);
             console.log('🔐 Password hash generated');
 
-            // Query customer from Firestore
+            // Query customers from Firestore to find by customerId
             const snapshot = await db.collection('users')
                 .doc(companyId)
                 .collection('customers')
@@ -485,16 +934,31 @@ const App = {
                 .get();
 
             if (snapshot.empty) {
-                showLoginError('Invalid Customer ID');
+                showLoginError('Invalid Customer ID or Company ID');
+                loginBtn.disabled = false;
+                loginBtnText.style.display = 'inline';
+                loginSpinner.classList.remove('active');
                 return;
             }
 
             const customerDoc = snapshot.docs[0];
             const customerData = customerDoc.data();
 
+            // Debug log
+            console.log('🔍 Login attempt:', {
+                enteredPassword: password,
+                enteredHash: passwordHash,
+                storedHash: customerData.passwordHash,
+                match: customerData.passwordHash === passwordHash,
+                fullCustomerData: customerData
+            });
+
             // Verify password
             if (customerData.passwordHash !== passwordHash) {
                 showLoginError('Invalid password');
+                loginBtn.disabled = false;
+                loginBtnText.style.display = 'inline';
+                loginSpinner.classList.remove('active');
                 return;
             }
 

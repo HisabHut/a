@@ -49,8 +49,18 @@ const SyncModule = {
                 console.log('✅ User logged in:', user.email);
                 this.syncEnabled = true;
                 
-                // Pull data from cloud when user logs in (app launch sync)
-                await this.syncNow();
+                // Create company session from Firebase Auth UID
+                const companySession = {
+                    companyId: user.uid,
+                    email: user.email,
+                    createdAt: new Date().toISOString()
+                };
+                
+                localStorage.setItem('companySession', JSON.stringify(companySession));
+                console.log('💾 Company session created:', companySession.companyId);
+                
+                // Update sync indicator
+                this.updateSyncIndicator('pending');
                 
                 if (window.App) {
                     App.showToast(`Signed in as ${user.email}`, 'success');
@@ -59,8 +69,16 @@ const SyncModule = {
                 console.log('❌ User logged out');
                 this.syncEnabled = false;
                 
+                // Clear company session
+                localStorage.removeItem('companySession');
+                console.log('🔓 Company session cleared');
+                
                 // Reset sync indicator
                 this.updateSyncIndicator('disabled');
+                
+                if (window.App) {
+                    App.showToast('Signed out', 'info');
+                }
             }
         });
     },
@@ -69,7 +87,11 @@ const SyncModule = {
      * Check sync status and update UI indicator
      */
     async checkSyncStatus() {
-        if (!this.syncEnabled || !this.currentUser) {
+        // Check for Firebase Auth user or company session
+        const currentUser = this.currentUser || window.firebase?.auth?.currentUser;
+        const sessionStr = localStorage.getItem('companySession');
+        
+        if (!this.syncEnabled || (!currentUser && !sessionStr)) {
             this.updateSyncIndicator('disabled');
             return { hasUnsyncedData: false, count: 0 };
         }
@@ -178,13 +200,28 @@ const SyncModule = {
     async signIn(email, password) {
         try {
             const userCredential = await window.FirebaseAuth.signInWithEmailAndPassword(email, password);
-            console.log('✅ User signed in:', userCredential.user.uid);
+            const user = userCredential.user;
+            
+            console.log('✅ User signed in:', user.uid);
+            
+            // Create company session from Firebase Auth UID
+            const companySession = {
+                companyId: user.uid,
+                email: user.email,
+                createdAt: new Date().toISOString()
+            };
+            
+            localStorage.setItem('companySession', JSON.stringify(companySession));
+            console.log('💾 Company session created:', companySession.companyId);
+            
+            // Enable sync
+            this.syncEnabled = true;
             
             if (window.App) {
                 App.showToast('Signed in successfully!', 'success');
             }
             
-            return userCredential.user;
+            return user;
         } catch (error) {
             console.error('❌ Sign in error:', error);
             
@@ -227,11 +264,43 @@ const SyncModule = {
     /**
      * Main sync function - called manually
      * Implements backup + restore model
+     * Uses company ID from Firebase Auth or session
      */
     async syncNow() {
-        if (!this.syncEnabled || !this.currentUser) {
+        // Get company ID from Firebase Auth user or session
+        const currentUser = this.currentUser || window.firebase?.auth?.currentUser;
+        if (!currentUser && !this.syncEnabled) {
             if (window.App) {
-                App.showToast('Please sign in to sync', 'warning');
+                App.showToast('Please login to sync', 'warning');
+            }
+            return;
+        }
+        
+        let companyId;
+        
+        // Use Firebase Auth UID as Company ID
+        if (currentUser && currentUser.uid) {
+            companyId = currentUser.uid;
+        } else {
+            // Fallback to session
+            const sessionStr = localStorage.getItem('companySession');
+            if (sessionStr) {
+                try {
+                    const session = JSON.parse(sessionStr);
+                    companyId = session.companyId;
+                } catch (error) {
+                    console.error('Invalid session:', error);
+                    if (window.App) {
+                        App.showToast('Invalid session', 'error');
+                    }
+                    return;
+                }
+            }
+        }
+        
+        if (!companyId) {
+            if (window.App) {
+                App.showToast('Company ID not found', 'warning');
             }
             return;
         }
@@ -245,17 +314,21 @@ const SyncModule = {
         this.updateSyncIndicator('syncing');
 
         try {
-            console.log('🔄 Starting backup & restore sync...');
+            console.log('🔄 Starting sync (Upload + Download)...');
             
             if (window.App) {
                 App.showToast('Syncing data...', 'info');
             }
 
-            const ownerId = this.currentUser.uid;
-            console.log('🔑 Admin Firebase Auth UID:', ownerId);
+            console.log('🔑 Company ID:', companyId);
             
-            // Only download cloud data (no upload)
-            await this.downloadAndMerge(ownerId);
+            // Upload customer credentials to Firestore
+            console.log('⬆️  Uploading customer credentials...');
+            await this.uploadCustomerCredentials(companyId);
+            
+            // Download cloud data
+            console.log('⬇️  Downloading data from cloud...');
+            await this.downloadAndMerge(companyId);
             
             this.lastSyncTime = new Date();
             localStorage.setItem('lastSyncTime', this.lastSyncTime.toISOString());
@@ -296,49 +369,168 @@ const SyncModule = {
     },
 
     /**
-     * Upload local changes to Firestore (DISABLED - Download only)
+     * Upload local changes to Firestore
      */
-    async uploadLocalChanges(ownerId) {
-        console.log('⏭️ Upload disabled - Download only mode');
+    async uploadLocalChanges(companyId) {
+        console.log('⏭️ Upload sync started');
         return;
+    },
+
+    /**
+     * Hash password using SHA-256
+     */
+    async hashPassword(password) {
+        if (!password) return '';
+        const encoder = new TextEncoder();
+        const data = encoder.encode(password);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    },
+
+    /**
+     * Upload customer credentials to Firestore
+     */
+    async uploadCustomerCredentials(companyId) {
+        try {
+            console.log('📤 Uploading customer credentials to Firestore...');
+            
+            // Get all customers from local DB
+            const customers = await DB.getAll('customers');
+            console.log(`📦 Found ${customers.length} customers to sync`);
+            
+            let uploadCount = 0;
+            
+            for (const customer of customers) {
+                try {
+                    // Only upload customers that have required fields
+                    if (!customer.customerId || (!customer.passwordHash && !customer.loginPassword)) {
+                        console.warn(`⏭️  Skipping customer ${customer.id} - missing customerId or password`);
+                        continue;
+                    }
+                    
+                    // Use passwordHash if available, otherwise assume loginPassword is plain and hash it
+                    const passwordHash = customer.passwordHash || await this.hashPassword(customer.loginPassword);
+                    console.log(`🔐 Using password hash for ${customer.customerId}`);
+                    
+                    // Prepare customer data for Firestore
+                    const firestoreData = {
+                        id: customer.id,
+                        customerId: customer.customerId,
+                        name: customer.name || '',
+                        email: customer.email || '',
+                        phone: customer.mobile || customer.phone || '',
+                        passwordHash: passwordHash,
+                        totalOrders: customer.totalOrders || 0,
+                        totalSpent: customer.totalSpent || 0,
+                        availableCredit: customer.availableCredit || 0,
+                        issuedCredit: customer.issuedCredit || 0,
+                        usedCredit: customer.usedCredit || 0,
+                        area: customer.area || '',
+                        status: customer.status || 'active',
+                        active: customer.active !== false,
+                        createdAt: customer.createdAt || new Date().toISOString(),
+                        updatedAt: new Date().toISOString()
+                    };
+                    
+                    // Upload to Firestore using customerId as document ID (for easy lookup)
+                    await this.uploadCustomerToFirestore(companyId, customer.customerId, firestoreData);
+                    uploadCount++;
+                    console.log(`✅ Uploaded customer: ${customer.customerId}`);
+                    
+                } catch (error) {
+                    console.error(`❌ Failed to upload customer ${customer.id}:`, error);
+                }
+            }
+            
+            console.log(`✅ Customer upload complete: ${uploadCount}/${customers.length} uploaded`);
+            
+        } catch (error) {
+            console.error('❌ Error uploading customer credentials:', error);
+            throw error;
+        }
+    },
+
+    /**
+     * Upload single customer to Firestore
+     */
+    async uploadCustomerToFirestore(companyId, customerId, data) {
+        try {
+            const db = window.firebase.firestore();
+            
+            await db.collection('users')
+                .doc(companyId)
+                .collection('customers')
+                .doc(String(customerId))
+                .set(data, { merge: true });
+                
+            console.log(`📤 Customer ${customerId} synced to Firestore`);
+            
+        } catch (error) {
+            console.error(`❌ Failed to sync customer to Firestore:`, error);
+            throw error;
+        }
     },
 
     /**
      * Download data from Firestore and merge with local (Restore)
      */
-    async downloadAndMerge(ownerId) {
+    async downloadAndMerge(companyId) {
         console.log('⬇️ Downloading from cloud...');
         
-        const stores = Object.values(DB.stores);
+        // Only sync specific stores (skip orders, credits during initial sync)
+        const storesToSync = ['products', 'customers', 'areas'];
         let downloadCount = 0;
 
-        for (const storeName of stores) {
+        for (const storeName of storesToSync) {
             try {
                 // Download all items from this collection
-                const cloudItems = await this.getAllFromCloud(ownerId, storeName);
+                const cloudItems = await this.getAllFromCloud(companyId, storeName);
+                
+                if (!cloudItems || cloudItems.length === 0) {
+                    console.log(`⬜ No items in ${storeName}`);
+                    continue;
+                }
                 
                 for (const cloudItem of cloudItems) {
                     try {
-                        const localItem = await DB.getById(storeName, cloudItem.id);
+                        // Try to find local item - handle both numeric and string IDs
+                        const normalizedId = isNaN(cloudItem.id) ? cloudItem.id : parseInt(cloudItem.id);
+                        let localItem = await DB.getById(storeName, cloudItem.id);
+                        
+                        // If not found with original ID, try normalized version
+                        if (!localItem && String(normalizedId) !== String(cloudItem.id)) {
+                            localItem = await DB.getById(storeName, normalizedId);
+                            console.log(`🔄 ID type mismatch resolved: "${cloudItem.id}" → ${normalizedId}`);
+                        }
                         
                         // Download if:
                         // 1. Item doesn't exist locally, OR
                         // 2. Cloud is newer than local
                         if (!localItem || this.isCloudNewer(cloudItem, localItem)) {
-                            // Merge with synced flag
-                            await DB.update(storeName, { ...cloudItem, synced: true });
+                            // Ensure numeric ID for consistency in IndexedDB
+                            const itemData = {
+                                ...cloudItem,
+                                id: normalizedId,  // Use numeric ID consistently
+                                synced: true
+                            };
+                            
+                            await DB.update(storeName, itemData);
                             downloadCount++;
-                            console.log(`✅ Downloaded ${storeName}/${cloudItem.id}`);
+                            console.log(`✅ Downloaded ${storeName}/${cloudItem.id} (id: ${normalizedId})`);
+                        } else {
+                            console.log(`⏭️ Skipped ${storeName}/${cloudItem.id} - local is newer`);
                         }
                     } catch (itemError) {
-                        console.error(`❌ Failed to merge ${storeName}/${cloudItem.id}:`, itemError);
+                        console.error(`❌ Failed to merge ${storeName}/${cloudItem.id}:`, itemError.message);
                     }
                 }
                 
-                console.log(`⬇️ Downloaded ${cloudItems.length} items from ${storeName}`);
+                console.log(`⬇️ Downloaded ${cloudItems.length} items from ${storeName}, merged: ${downloadCount}`);
                 
             } catch (storeError) {
-                console.error(`❌ Failed to download ${storeName}:`, storeError);
+                console.warn(`⚠️ Could not download from ${storeName}:`, storeError.message);
+                // Continue with next store instead of failing
             }
         }
 
@@ -356,12 +548,13 @@ const SyncModule = {
     /**
      * Get single item from cloud
      */
-    async getFromCloud(ownerId, storeName, id) {
+    async getFromCloud(companyId, storeName, id) {
         try {
-            const collectionPath = this.getCollectionPath(ownerId, storeName);
+            const collectionPath = this.getCollectionPath(companyId, storeName);
+            const db = window.firebase.firestore();
             
-            const docRef = FirebaseDB.collection('users')
-                .doc(ownerId)
+            const docRef = db.collection('users')
+                .doc(companyId)
                 .collection(collectionPath)
                 .doc(String(id));
 
@@ -386,27 +579,34 @@ const SyncModule = {
     /**
      * Get all items from a cloud collection
      */
-    async getAllFromCloud(ownerId, storeName) {
+    async getAllFromCloud(companyId, storeName) {
         try {
-            const collectionPath = this.getCollectionPath(ownerId, storeName);
+            const collectionPath = this.getCollectionPath(companyId, storeName);
+            const db = window.firebase.firestore();
             
-            const snapshot = await FirebaseDB.collection('users')
-                .doc(ownerId)
+            const snapshot = await db.collection('users')
+                .doc(companyId)
                 .collection(collectionPath)
+                .limit(1000) // Limit to first 1000 docs
                 .get();
             
             const items = [];
             snapshot.forEach(doc => {
                 const data = doc.data();
-                const { syncedAt, ...cleanData } = data;
-                items.push(cleanData);
+                // Keep the document id as the 'id' field
+                items.push({
+                    id: doc.id,
+                    ...data
+                });
             });
             
+            console.log(`📖 Retrieved ${items.length} items from ${storeName}`);
             return items;
             
         } catch (error) {
-            console.error(`❌ Failed to get all from ${storeName}:`, error);
-            throw error;
+            console.warn(`⚠️ Collection ${storeName} not found or error reading:`, error.message);
+            // Return empty array instead of throwing - collection might not exist yet
+            return [];
         }
     },
 
@@ -414,7 +614,7 @@ const SyncModule = {
      * Get collection path for a store
      * Maps local store names to Firestore collection names
      */
-    getCollectionPath(ownerId, storeName) {
+    getCollectionPath(companyId, storeName) {
         // Map store names to Firestore collections
         const collectionMap = {
             'products': 'products',

@@ -640,6 +640,39 @@ const CreditsModule = {
         if (fab) fab.style.display = '';
     },
 
+    async syncCreditToFirestore(credit) {
+        try {
+            const sessionStr = localStorage.getItem('companySession');
+            if (!sessionStr) return;
+
+            if (!window.firebase || !window.firebase.firestore()) return;
+
+            const session = JSON.parse(sessionStr);
+            const companyId = session.companyId;
+            const db = window.firebase.firestore();
+
+            const customer = this.customers.find(c => c.id === credit.customerId);
+            const customerIdText = customer?.customerId || customer?.loginId || String(credit.customerId || '');
+
+            const payload = {
+                ...credit,
+                customerId: credit.customerId,
+                customerIdText,
+                customerName: customer?.name || credit.customerName || '',
+                updatedAt: new Date().toISOString(),
+                createdAt: credit.createdAt || new Date().toISOString()
+            };
+
+            await db.collection('users')
+                .doc(companyId)
+                .collection('credits')
+                .doc(String(credit.id))
+                .set(payload, { merge: true });
+        } catch (error) {
+            console.error('Error syncing credit to Firestore:', error);
+        }
+    },
+
     async saveCredit() {
         const customerId = parseInt(document.getElementById('creditCustomer').value, 10);
         const amount = parseFloat(document.getElementById('creditAmount').value || '0');
@@ -675,7 +708,9 @@ const CreditsModule = {
         };
 
         try {
-            await DB.addCredit(credit);
+            const creditId = await DB.addCredit(credit);
+            const savedCredit = { ...credit, id: creditId };
+            await this.syncCreditToFirestore(savedCredit);
             App.showToast('Credit added successfully', 'success');
             this.closeAddModal();
             await this.loadCredits();
@@ -731,6 +766,7 @@ const CreditsModule = {
             // Find all unpaid credits for this customer and apply payment
             const customerCredits = this.credits.filter(c => c.customerId === customerId);
             let remainingPayment = paymentAmount;
+            const updatedCredits = [];
 
             for (const credit of customerCredits) {
                 if (remainingPayment <= 0) break;
@@ -745,6 +781,11 @@ const CreditsModule = {
                 remainingPayment -= paymentToApply;
 
                 await DB.updateCredit(credit);
+                updatedCredits.push({ ...credit });
+            }
+
+            for (const credit of updatedCredits) {
+                await this.syncCreditToFirestore(credit);
             }
 
             App.showToast('Payment recorded successfully', 'success');

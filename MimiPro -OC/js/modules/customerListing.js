@@ -157,11 +157,37 @@ const CustomerListingModule = {
         const customer = this.customers.find(c => c.id === customerId);
         if (!customer) return;
 
-        // Use user ID from state as Company ID if available, otherwise use a placeholder
-        const companyId = window.SyncModule?.currentUser?.uid || 'N/A';
+        // Get Company ID from:
+        // 1. localStorage companySession (if set by Admin app sync)
+        // 2. OR Firebase Auth current user UID (if user is logged in)
+        let companyId = 'N/A';
+        
+        // Try to get from session first
+        const sessionStr = localStorage.getItem('companySession');
+        if (sessionStr) {
+            try {
+                const session = JSON.parse(sessionStr);
+                companyId = session.companyId || 'N/A';
+            } catch (error) {
+                console.error('Error parsing company session:', error);
+            }
+        }
+        
+        // If not found in session, try to get from Firebase Auth
+        if (!companyId || companyId === 'N/A') {
+            try {
+                const currentUser = window.firebase?.auth?.currentUser;
+                if (currentUser && currentUser.uid) {
+                    companyId = currentUser.uid;
+                    console.log('📱 Using Firebase Auth UID as Company ID:', companyId);
+                }
+            } catch (error) {
+                console.error('Error getting Firebase Auth user:', error);
+            }
+        }
         
         document.getElementById('companyIdDisplay').textContent = companyId;
-        document.getElementById('customerIdDisplay').textContent = customerId;
+        document.getElementById('customerIdDisplay').textContent = customer.id || 'N/A';
         document.getElementById('customerLoginIdDisplay').textContent = customer.customerId || 'Not available';
         document.getElementById('customerPasswordDisplay').textContent = customer.loginPassword || 'Not available';
 
