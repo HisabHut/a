@@ -934,6 +934,43 @@
 
 /* Print styles removed */
 
+@media print {
+  /* Hide the View Order title and close (×) button so they don't show in print */
+  #viewOrderModal h2,
+  #viewOrderModal #closeViewModal {
+    display: none !important;
+  }
+
+  /* Hide "Saved as Customer Credit" notice */
+  #viewOrderModal div[style*="fef3c7"],
+  #viewOrderModal div[style*="Saved as Customer Credit"] {
+    display: none !important;
+  }
+
+  /* Strip borders/background/box-shadow from the modal and tables */
+  #viewOrderModal,
+  #viewOrderModal > div,
+  #viewOrderModal table,
+  #viewOrderModal th,
+  #viewOrderModal td {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  /* Hide the per-item "Price" column in the View Order modal (4th grid column)
+     This prevents unit-price from being included when users print the page or modal. */
+  #viewOrderModal div[style*="grid-template-columns: 2fr 1fr 1fr 1fr 1fr"] > div:nth-child(4),
+  #viewOrderModal #viewProductRows > div > div:nth-child(4) {
+    display: none !important;
+  }
+
+  /* Collapse the grid so there is no empty column left */
+  #viewOrderModal div[style*="grid-template-columns: 2fr 1fr 1fr 1fr 1fr"] {
+    grid-template-columns: 2fr 1fr 1fr 1fr !important;
+  }
+}
+
 /* Tabs */
 .tabs {
     display: flex;

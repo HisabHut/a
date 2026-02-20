@@ -1,0 +1,8 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^node -e \"const fs=require\\('fs'\\); new Function\\(fs\\.readFileSync\\('js/modules/orders\\.js','utf8'\\)\\); console\\.log\\('orders\\.js parsed OK'\\)\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}

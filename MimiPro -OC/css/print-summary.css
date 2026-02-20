@@ -1,0 +1,18 @@
+body {
+    margin: 0;
+    padding: 20px;
+    font-family: monospace;
+    background: white;
+}
+
+pre {
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+@media print {
+    body {
+        margin: 0;
+        padding: 0;
+    }
+}

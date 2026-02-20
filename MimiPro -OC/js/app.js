@@ -148,6 +148,25 @@ const App = {
                 this.refreshCurrentPage();
             }
         });
+
+        // Close popups when clicking on the backdrop (click outside modal/dialog)
+        // - Handles static `.modal` elements and `.delete-confirm-overlay` (calls their internal close/cancel button when present)
+        document.addEventListener('click', (e) => {
+            const target = e.target;
+            if (!target || !target.classList) return;
+
+            if (target.classList.contains('modal') || target.classList.contains('delete-confirm-overlay')) {
+                // Prefer triggering the existing close button so module-level cleanup runs
+                const closeBtn = target.querySelector('.modal-close, .delete-confirm-btn.cancel, .cancel');
+                if (closeBtn) {
+                    closeBtn.click();
+                    return;
+                }
+
+                // Fallback: hide the overlay
+                if (target.classList.contains('show')) target.classList.remove('show');
+            }
+        });
     },
 
     loadModules() {

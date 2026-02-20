@@ -47,12 +47,16 @@ const OrdersModule = {
                     <h3 style="font-size: 18px; font-weight: 700; color: #111827; margin: 0;">Orders</h3>
                     <div style="display: flex; gap: 8px; align-items: center;">
 
-                        <button id="summaryBtn" style="width: 44px; height: 44px; border: none; border-radius: 50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3); transition: all 0.3s ease;" onmouseover="this.style.transform='scale(1.1)'; this.style.boxShadow='0 6px 16px rgba(102, 126, 234, 0.4)'" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 4px 12px rgba(102, 126, 234, 0.3)'" title="View Summary">
+                            <button id="summaryBtn" style="width: 44px; height: 44px; border: none; border-radius: 50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3); transition: all 0.3s ease;" onmouseover="this.style.transform='scale(1.1)'; this.style.boxShadow='0 6px 16px rgba(102, 126, 234, 0.4)'" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 4px 12px rgba(102, 126, 234, 0.3)'" title="View Summary">
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <line x1="18" y1="20" x2="18" y2="10"></line>
                                 <line x1="12" y1="20" x2="12" y2="4"></line>
                                 <line x1="6" y1="20" x2="6" y2="14"></line>
                             </svg>
+                        </button>
+                        <!-- all-print button next to add/summary -->
+                        <button id="allPrintBtn" style="width: 44px; height: 44px; border: none; border-radius: 50%; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3); transition: all 0.3s ease;" onmouseover="this.style.transform='scale(1.1)'; this.style.boxShadow='0 6px 16px rgba(16, 185, 129, 0.4)'" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 4px 12px rgba(16, 185, 129, 0.3)'" title="Print All">
+                            🖨
                         </button>
                         <button id="addOrderBtn" style="width: 44px; height: 44px; border: none; border-radius: 50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; font-size: 24px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3); transition: all 0.3s ease;" onmouseover="this.style.transform='scale(1.1)'; this.style.boxShadow='0 6px 16px rgba(102, 126, 234, 0.4)'" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 4px 12px rgba(102, 126, 234, 0.3)'">+</button>
                     </div>
@@ -98,6 +102,11 @@ const OrdersModule = {
             summaryBtn.addEventListener('click', () => this.showSummaryModal());
         }
 
+        const allPrintBtn = document.getElementById('allPrintBtn');
+        if (allPrintBtn) {
+            allPrintBtn.addEventListener('click', () => this.openPrintAll());
+        }
+
 
 
         const orderDeleteCancel = document.getElementById('orderDeleteCancel');
@@ -124,12 +133,140 @@ const OrdersModule = {
         return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
     },
 
+    // opens a single print page containing every order for the selected date
+    openPrintAll() {
+        const filtered = this.orders.filter(o => (o.createdAt||'').split('T')[0] === this.selectedDate);
+        if (filtered.length === 0) {
+            if (window.App && window.App.showToast) window.App.showToast('No orders to print', 'info');
+            return;
+        }
+        // gather seller info and then send to print-all.html
+        const sendPayload = (info) => {
+            // attach customer mobiles where available
+            const ordersWithPhones = filtered.map(order => {
+                const o = Object.assign({}, order);
+                const cust = this.customers.find(c => c.id === order.customerId);
+                if (cust && cust.mobile) o.customerMobile = cust.mobile;
+                return o;
+            });
+            const payload = {
+                date: this.selectedDate,
+                orders: ordersWithPhones,
+                sellerName: info.sellerName || '',
+                sellerPhone: info.sellerPhone || ''
+            };
+            localStorage.setItem('printAllOrders', JSON.stringify(payload));
+            window.open('print-all.html', '_blank');
+        };
+
+        this._getSellerInfo().then(sendPayload).catch(() => {
+            sendPayload({ sellerName: '', sellerPhone: '' });
+        });
+    },
+
+    // opens dedicated print page containing the summary data
+    openPrintSummary() {
+        const filteredOrders = this.orders.filter(order => {
+            const orderDate = (order.createdAt || '').split('T')[0];
+            return orderDate === this.selectedDate;
+        });
+        if (filteredOrders.length === 0) {
+            if (window.App && window.App.showToast) window.App.showToast('No orders to summarize', 'info');
+            return;
+        }
+
+        const productSummary = {};
+        filteredOrders.forEach(order => {
+            (order.items || []).forEach(item => {
+                const productId = item.productId;
+                if (!productSummary[productId]) {
+                    productSummary[productId] = {
+                        productId,
+                        productName: item.productName,
+                        cartons: 0,
+                        pcs: 0,
+                        price: item.price || 0,
+                        total: 0,
+                        customerCount: new Set()
+                    };
+                }
+                productSummary[productId].cartons += item.cartons || 0;
+                productSummary[productId].pcs += item.pcs || 0;
+                productSummary[productId].total += item.total || 0;
+                productSummary[productId].customerCount.add(order.customerId);
+            });
+        });
+        const summaryArray = Object.values(productSummary).map(item => ({
+            ...item,
+            customerCount: item.customerCount.size
+        }));
+        const grandTotal = summaryArray.reduce((sum, item) => sum + item.total, 0);
+        // include seller info
+        const send = (info) => {
+            const payload = { date: this.selectedDate, ordersCount: filteredOrders.length, summaryArray, grandTotal, sellerName: info.sellerName||'', sellerPhone: info.sellerPhone||'' };
+            const key = `printSummary-${Date.now()}`;
+            localStorage.setItem(key, JSON.stringify(payload));
+            window.open(`print-summary.html?key=${key}`, '_blank');
+        };
+        this._getSellerInfo().then(send).catch(() => send({ sellerName: '', sellerPhone: '' }));
+    },
+
     async loadOrders() {
         try {
             this.orders = await DB.getAll('orders') || [];
             this.renderOrders();
         } catch (error) {
             console.error('Error loading orders:', error);
+        }
+    },
+
+    // Return sellerName and sellerPhone — prefer logged-in username, then Settings, then DB/localStorage
+    async _getSellerInfo() {
+        try {
+            // 1) If a Firebase-auth user with displayName exists, use that as sellerName
+            const fbUser = (window.FirebaseAuth && window.FirebaseAuth.currentUser) || (window.firebase && window.firebase.auth && window.firebase.auth().currentUser);
+            if (fbUser && fbUser.displayName) {
+                // phone: prefer SettingsModule._sellerPhone, then DB setting, then session
+                let phone = '';
+                if (window.SettingsModule && typeof window.SettingsModule._sellerPhone !== 'undefined') {
+                    phone = window.SettingsModule._sellerPhone || '';
+                } else {
+                    phone = await window.DB.getSetting('sellerPhone') || '';
+                    const sessionStr = localStorage.getItem('companySession');
+                    if (!phone && sessionStr) {
+                        try { phone = JSON.parse(sessionStr).phone || ''; } catch(e) { /* ignore */ }
+                    }
+                }
+                return { sellerName: fbUser.displayName || '', sellerPhone: phone || '' };
+            }
+
+            // 2) Prefer explicit SettingsModule sellerName/Phone when present
+            if (window.SettingsModule && typeof window.SettingsModule._sellerName !== 'undefined' && window.SettingsModule._sellerName) {
+                return {
+                    sellerName: window.SettingsModule._sellerName || '',
+                    sellerPhone: window.SettingsModule._sellerPhone || ''
+                };
+            }
+
+            // 3) Fallback to IndexedDB settings
+            const [phoneSetting, nameSetting] = await Promise.all([
+                window.DB.getSetting('sellerPhone'),
+                window.DB.getSetting('sellerName')
+            ]);
+            if (nameSetting || phoneSetting) return { sellerName: nameSetting || '', sellerPhone: phoneSetting || '' };
+
+            // 4) Last resort — localStorage companySession
+            const sessionStr = localStorage.getItem('companySession');
+            if (sessionStr) {
+                try {
+                    const session = JSON.parse(sessionStr);
+                    return { sellerName: session.name || '', sellerPhone: session.phone || '' };
+                } catch (e) { /* ignore */ }
+            }
+
+            return { sellerName: '', sellerPhone: '' };
+        } catch (err) {
+            return { sellerName: '', sellerPhone: '' };
         }
     },
 
@@ -290,6 +427,7 @@ const OrdersModule = {
                 </div>
 
                 <div style="display: flex; gap: 10px;">
+                    <button type="button" id="sumPrintBtn" style="flex: 0 0 120px; padding: 14px; border: none; background: #10b981; border-radius: 8px; font-size: 15px; font-weight: 600; color: white; cursor: pointer; transition: all 0.3s ease;">Sum‑Print</button>
                     <button type="button" id="closeSummaryBtn" style="flex: 1; padding: 14px; border: none; background: #6b7280; border-radius: 8px; font-size: 15px; font-weight: 600; color: white; cursor: pointer; transition: all 0.3s ease;">Close</button>
                 </div>
             </div>
@@ -304,6 +442,10 @@ const OrdersModule = {
 
         document.getElementById('closeSummaryModal').addEventListener('click', closeModal);
         document.getElementById('closeSummaryBtn').addEventListener('click', closeModal);
+        const sumPrintBtnEl = document.getElementById('sumPrintBtn');
+        if (sumPrintBtnEl) {
+            sumPrintBtnEl.addEventListener('click', () => this.openPrintSummary());
+        }
         
 
 
@@ -734,6 +876,29 @@ const OrdersModule = {
         }
     },
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     async showViewOrderModal(order) {
         const modal = document.createElement('div');
         modal.id = 'viewOrderModal';
@@ -742,8 +907,15 @@ const OrdersModule = {
         const orderDate = this.formatDateDisplay((order.createdAt || '').split('T')[0]);
         const createdTime = order.createdAt ? new Date(order.createdAt).toLocaleTimeString() : 'N/A';
         
-        // Find customer info
+        // Load seller info (from settings/localStorage) and then find customer info
+        const { sellerName, sellerPhone } = await this._getSellerInfo();
         const customer = this.customers.find(c => c.id === order.customerId);
+        // remember for plain-text printing (include customer mobile if available)
+        const printOrderCopy = Object.assign({}, order);
+        if (customer && customer.mobile) printOrderCopy.customerMobile = customer.mobile;
+        window.smPrintOrder = printOrderCopy;
+        window.smPrintSellerName = sellerName;
+        window.smPrintSellerPhone = sellerPhone;
         
         modal.innerHTML = `
             <div style="width: 100%; background: white; border-radius: 16px 16px 0 0; padding: 20px; max-height: 90vh; overflow-y: auto; animation: slideUp 0.3s ease;">
@@ -752,8 +924,14 @@ const OrdersModule = {
                     <button id="closeViewModal" style="width: 28px; height: 28px; border: none; background: transparent; cursor: pointer; font-size: 24px; color: #9ca3af; padding: 0; line-height: 1;">×</button>
                 </div>
 
+                <div style="text-align:center; margin-bottom:8px;">
+                    <div style="font-size:14px; font-weight:700; color:#111827; margin-bottom:2px;">${sellerName || 'Seller'}</div>
+                    <div style="font-size:13px; color:#6b7280;">${sellerPhone || ''}</div>
+                </div>
+
                 <div style="text-align: center; margin-bottom: 24px;">
                     <div style="font-size: 18px; font-weight: 700; color: #111827; margin-bottom: 6px;"><strong>${order.customerName || 'Unknown'}</strong></div>
+                    <div style="font-size: 13px; color: #6b7280; margin-bottom: 8px;">${customer && customer.mobile ? customer.mobile : ''}</div>
                     <div style="font-size: 13px; color: #6b7280; margin-bottom: 8px;">${order.area || 'N/A'}</div>
                     <div style="font-size: 13px; color: #374151; margin-bottom: 6px;">${orderDate} at ${createdTime}</div>
                     <div style="font-size: 12px; color: #9ca3af;">${order.orderNumber || 'Order #' + order.id}</div>
@@ -787,7 +965,7 @@ const OrdersModule = {
                     <div style="font-size: 14px; font-weight: 600; color: #6b7280; margin-bottom: 8px;">Summary</div>
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <div style="font-size: 16px; font-weight: 700; color: #111827;">Total Amount</div>
-                        <div style="font-size: 18px; font-weight: 700; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">৳${Math.round(order.total || 0)}</div>
+                        <div style="font-size: 18px; font-weight: 700; color: #111827;">৳${Math.round(order.total || 0)}</div>
                     </div>
                 </div>
 
@@ -801,7 +979,8 @@ const OrdersModule = {
                 ` : ''}
 
                 <div style="display: flex; gap: 10px;">
-                    <button type="button" id="editOrderBtn" style="flex: 0 0 120px; padding: 14px; border: none; background: #f59e0b; border-radius: 8px; font-size: 15px; font-weight: 600; color: white; cursor: pointer; transition: all 0.3s ease;">Edit</button>
+                    <button type="button" id="editOrderBtn" style="flex: 0 0 140px; padding: 14px; border: none; background: #f59e0b; border-radius: 8px; font-size: 15px; font-weight: 600; color: white; cursor: pointer; transition: all 0.3s ease;">Edit</button>
+                    <button type="button" id="sPrintOrderBtn" class="sm-print" style="flex: 0 0 120px; padding: 14px; border: none; background: #10b981; border-radius: 8px; font-size: 15px; font-weight: 600; color: white; cursor: pointer; transition: all 0.3s ease;">S‑Print</button>
                     <button type="button" id="closeViewBtn" style="flex: 1; padding: 14px; border: none; background: #6b7280; border-radius: 8px; font-size: 15px; font-weight: 600; color: white; cursor: pointer; transition: all 0.3s ease;">Close</button>
                 </div>
             </div>
@@ -811,15 +990,57 @@ const OrdersModule = {
 
         const closeModal = () => {
             modal.style.animation = 'slideDown 0.3s ease';
-            setTimeout(() => modal.remove(), 300);
+            setTimeout(() => {
+                modal.remove();
+                // wipe print globals so stale data isn't reused
+                window.smPrintOrder = null;
+                window.smPrintSellerName = null;
+                window.smPrintSellerPhone = null;
+            }, 300);
         };
 
-        document.getElementById('closeViewModal').addEventListener('click', closeModal);
-        document.getElementById('closeViewBtn').addEventListener('click', closeModal);
-        document.getElementById('editOrderBtn').addEventListener('click', () => {
+        const closeViewTopBtn = modal.querySelector('#closeViewModal');
+        const closeViewBtnEl = modal.querySelector('#closeViewBtn');
+        const editOrderBtnEl = modal.querySelector('#editOrderBtn');
+        const sPrintBtn = modal.querySelector('#sPrintOrderBtn');
+        if (sPrintBtn) {
+            sPrintBtn.addEventListener('click', async () => {
+                // always fetch fresh seller info when printing
+                let info = { sellerName: sellerName || '', sellerPhone: sellerPhone || '' };
+                try {
+                    const more = await this._getSellerInfo();
+                    if (more) {
+                        info.sellerName = more.sellerName || info.sellerName;
+                        info.sellerPhone = more.sellerPhone || info.sellerPhone;
+                    }
+                } catch(e) {
+                    console.warn('could not refresh seller info', e);
+                }
+
+                const printData = Object.assign({}, order, info);
+                // include customer mobile if known
+                if (customer && customer.mobile) printData.customerMobile = customer.mobile;
+                localStorage.setItem('printOrder', JSON.stringify(printData));
+                window.open('print-single.html', '_blank');
+            });
+        }
+
+        if (closeViewTopBtn) closeViewTopBtn.addEventListener('click', closeModal);
+        if (closeViewBtnEl) closeViewBtnEl.addEventListener('click', closeModal);
+        if (editOrderBtnEl) editOrderBtnEl.addEventListener('click', () => {
             closeModal();
             this.showEditOrderModal(order);
         });
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -856,6 +1077,33 @@ const OrdersModule = {
             document.head.appendChild(style);
         }
     },
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     async showEditOrderModal(order) {
         // Ensure data is loaded
