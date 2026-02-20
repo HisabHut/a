@@ -29,6 +29,8 @@ const App = {
         }
         
         console.log('✅ App ready');
+
+
     },
 
     onFirebaseReady() {

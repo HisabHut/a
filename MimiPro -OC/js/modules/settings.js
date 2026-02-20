@@ -5,9 +5,41 @@
 const SettingsModule = {
     currentExportData: null,
     currentExportFileName: null,
+    _sellerPhone: null,
+    _sellerName: null,
 
-    init() {
+    async init() {
         this.initTheme(); // Apply saved theme
+        // Load seller phone & seller name from IndexedDB before rendering
+        try {
+            const phone = await window.DB.getSetting('sellerPhone');
+            const name = await window.DB.getSetting('sellerName');
+            this._sellerPhone = phone !== null ? phone : '';
+            this._sellerName = name !== null ? name : '';
+            // Keep localStorage session in sync
+            const sessionStr = localStorage.getItem('companySession');
+            if (sessionStr) {
+                const session = JSON.parse(sessionStr);
+                // phone sync (preserve session value if present)
+                if (this._sellerPhone !== '') {
+                    if (!session.phone) session.phone = this._sellerPhone;
+                    else this._sellerPhone = session.phone;
+                } else if (session.phone) {
+                    this._sellerPhone = session.phone;
+                }
+                // name sync (preserve session value if present)
+                if (this._sellerName !== '') {
+                    if (!session.name) session.name = this._sellerName;
+                    else this._sellerName = session.name;
+                } else if (session.name) {
+                    this._sellerName = session.name;
+                }
+                localStorage.setItem('companySession', JSON.stringify(session));
+            }
+        } catch(e) {
+            this._sellerPhone = '';
+            this._sellerName = '';
+        }
         this.render();
         this.bindEvents();
     },
@@ -225,6 +257,32 @@ const SettingsModule = {
                     </div>
                 ` : ''}
                 
+                <!-- Seller Profile Section -->
+                ${ (() => { let cs=null; try{cs=JSON.parse(localStorage.getItem('companySession'));}catch(e){} if(!cs) return ''; return `
+                <div class="account-section">
+                    <div class="account-header">
+                        <div class="account-icon" style="background:linear-gradient(135deg,#43e97b 0%,#38f9d7 100%);">🏪</div>
+                        <div class="account-title">
+                            <h3>Seller Profile</h3>
+                            <p>Seller contact (optional)</p>
+                        </div>
+                    </div>
+                    <div style="margin-top:14px;">
+                        <div style="margin-bottom:10px;">
+                            <label style="display:block;font-size:13px;font-weight:600;color:#4a5568;margin-bottom:4px;">Seller Name</label>
+                            <div style="padding:8px 12px;background:#f7fafc;border-radius:6px;font-size:14px;color:#2d3748;border:2px solid #e2e8f0;">${cs.name || ''}</div>
+                        </div>
+                        <div style="margin-bottom:12px;">
+                            <label style="display:block;font-size:13px;font-weight:600;color:#4a5568;margin-bottom:4px;">Mobile Number</label>
+                            <input id="sellerPhoneInput" type="tel" value="${this._sellerPhone !== null ? this._sellerPhone : (cs.phone || '')}" placeholder="e.g. 01XXXXXXXXX"
+                                style="width:100%;padding:8px 12px;border:2px solid #e2e8f0;border-radius:6px;font-size:14px;color:#2d3748;box-sizing:border-box;outline:none;" />
+                        </div>
+                        <button class="btn btn-primary" id="saveSellerPhoneBtn" style="width:100%;">💾 Save Mobile Number</button>
+                        <div id="sellerPhoneMsg" style="display:none;margin-top:8px;font-size:13px;text-align:center;"></div>
+                    </div>
+                </div>
+                `; })() }
+
                 <!-- Account Section -->
                 <div class="account-section">
                     ${user ? `
@@ -530,6 +588,45 @@ const SettingsModule = {
     },
 
     bindEvents() {
+        // Save seller mobile locally
+        const saveSellerPhoneBtn = document.getElementById('saveSellerPhoneBtn');
+        if (saveSellerPhoneBtn) {
+            saveSellerPhoneBtn.addEventListener('click', async () => {
+                const phoneInput = document.getElementById('sellerPhoneInput');
+                const nameInput = document.getElementById('sellerNameInput');
+                const msg = document.getElementById('sellerPhoneMsg');
+                const phone = phoneInput ? phoneInput.value.trim() : '';
+                const name = nameInput ? nameInput.value.trim() : '';
+                try {
+                    // Save to IndexedDB (long-term)
+                    if (window.DB && typeof DB.putSetting === 'function') {
+                        await window.DB.putSetting('sellerPhone', phone);
+                        await window.DB.putSetting('sellerName', name);
+                    }
+                    // Keep localStorage session in sync
+                    const sessionStr = localStorage.getItem('companySession');
+                    const session = sessionStr ? JSON.parse(sessionStr) : {};
+                    if (phone) session.phone = phone;
+                    if (name) session.name = name;
+                    localStorage.setItem('companySession', JSON.stringify(session));
+                    this._sellerPhone = phone;
+                    this._sellerName = name;
+                    if (msg) {
+                        msg.style.display = 'block';
+                        msg.style.color = '#38a169';
+                        msg.textContent = '✅ Seller info saved!';
+                        setTimeout(() => { msg.style.display = 'none'; }, 3000);
+                    }
+                } catch (err) {
+                    if (msg) {
+                        msg.style.display = 'block';
+                        msg.style.color = '#e53e3e';
+                        msg.textContent = '❌ Failed to save.';
+                    }
+                }
+            });
+        }
+
         const openAuthModalBtn = document.getElementById('openAuthModalBtn');
         const closeAuthModal = document.getElementById('closeAuthModal');
         const authModal = document.getElementById('authModal');

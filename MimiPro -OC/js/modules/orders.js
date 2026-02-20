@@ -45,7 +45,17 @@ const OrdersModule = {
             <div class="card" style="background: #ffffff; border: 1px solid #e5e7eb; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 2px solid #f3f4f6;">
                     <h3 style="font-size: 18px; font-weight: 700; color: #111827; margin: 0;">Orders</h3>
-                    <button id="addOrderBtn" style="width: 44px; height: 44px; border: none; border-radius: 50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; font-size: 24px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3); transition: all 0.3s ease;" onmouseover="this.style.transform='scale(1.1)'; this.style.boxShadow='0 6px 16px rgba(102, 126, 234, 0.4)'" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 4px 12px rgba(102, 126, 234, 0.3)'">+</button>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+
+                        <button id="summaryBtn" style="width: 44px; height: 44px; border: none; border-radius: 50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3); transition: all 0.3s ease;" onmouseover="this.style.transform='scale(1.1)'; this.style.boxShadow='0 6px 16px rgba(102, 126, 234, 0.4)'" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 4px 12px rgba(102, 126, 234, 0.3)'" title="View Summary">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="18" y1="20" x2="18" y2="10"></line>
+                                <line x1="12" y1="20" x2="12" y2="4"></line>
+                                <line x1="6" y1="20" x2="6" y2="14"></line>
+                            </svg>
+                        </button>
+                        <button id="addOrderBtn" style="width: 44px; height: 44px; border: none; border-radius: 50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; font-size: 24px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3); transition: all 0.3s ease;" onmouseover="this.style.transform='scale(1.1)'; this.style.boxShadow='0 6px 16px rgba(102, 126, 234, 0.4)'" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 4px 12px rgba(102, 126, 234, 0.3)'">+</button>
+                    </div>
                 </div>
 
                 <div id="ordersList" style="display: flex; flex-direction: column; gap: 10px;"></div>
@@ -82,6 +92,13 @@ const OrdersModule = {
         if (addOrderBtn) {
             addOrderBtn.addEventListener('click', async () => await this.showAddOrderModal());
         }
+
+        const summaryBtn = document.getElementById('summaryBtn');
+        if (summaryBtn) {
+            summaryBtn.addEventListener('click', () => this.showSummaryModal());
+        }
+
+
 
         const orderDeleteCancel = document.getElementById('orderDeleteCancel');
         const orderDeleteOk = document.getElementById('orderDeleteOk');
@@ -175,6 +192,163 @@ const OrdersModule = {
     refresh() {
         this.loadOrders();
     },
+
+    showSummaryModal() {
+        // Filter orders by selected date
+        const filteredOrders = this.orders.filter(order => {
+            const orderDate = (order.createdAt || '').split('T')[0];
+            return orderDate === this.selectedDate;
+        });
+
+        if (filteredOrders.length === 0) {
+            if (window.App && window.App.showToast) {
+                window.App.showToast('No orders found for this date', 'info');
+            }
+            return;
+        }
+
+        // Aggregate products from all orders
+        const productSummary = {};
+
+        filteredOrders.forEach(order => {
+            (order.items || []).forEach(item => {
+                const productId = item.productId;
+                if (!productSummary[productId]) {
+                    productSummary[productId] = {
+                        productId: productId,
+                        productName: item.productName,
+                        cartons: 0,
+                        pcs: 0,
+                        price: item.price || 0,
+                        pcsPerCarton: item.pcsPerCarton || 1,
+                        total: 0,
+                        customerCount: new Set()
+                    };
+                }
+                productSummary[productId].cartons += item.cartons || 0;
+                productSummary[productId].pcs += item.pcs || 0;
+                productSummary[productId].total += item.total || 0;
+                productSummary[productId].customerCount.add(order.customerId);
+            });
+        });
+
+        // Convert to array and calculate totals
+        const summaryArray = Object.values(productSummary).map(item => ({
+            ...item,
+            customerCount: item.customerCount.size
+        }));
+
+        const grandTotal = summaryArray.reduce((sum, item) => sum + item.total, 0);
+
+        const modal = document.createElement('div');
+        modal.id = 'summaryModal';
+        modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); display: flex; align-items: flex-end; z-index: 1000;';
+
+        const orderDate = this.formatDateDisplay(this.selectedDate);
+
+        modal.innerHTML = `
+            <div style="width: 100%; background: white; border-radius: 16px 16px 0 0; padding: 20px; max-height: 90vh; overflow-y: auto; animation: slideUp 0.3s ease;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2 style="font-size: 20px; font-weight: 700; color: #111827; margin: 0;">Order Summary</h2>
+                    <button id="closeSummaryModal" style="width: 28px; height: 28px; border: none; background: transparent; cursor: pointer; font-size: 24px; color: #9ca3af; padding: 0; line-height: 1;">×</button>
+                </div>
+
+                <div class="summary-header" style="text-align: center; margin-bottom: 20px;">
+                    <h2 style="font-size: 16px; font-weight: 700; color: #111827; margin: 0 0 8px 0;">ORDER SUMMARY</h2>
+                    <div style="font-size: 14px; font-weight: 600; color: #111827; margin-bottom: 4px;">${orderDate}</div>
+                    <div style="font-size: 12px; color: #6b7280;">${filteredOrders.length} order${filteredOrders.length !== 1 ? 's' : ''} • ${summaryArray.length} product${summaryArray.length !== 1 ? 's' : ''}</div>
+                </div>
+
+                <div style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+                    <div style="font-size: 15px; font-weight: 600; color: #374151; margin-bottom: 12px;">Product Summary</div>
+                    
+                    <div style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 8px; font-size: 13px; color: #6b7280; font-weight: 600; margin-bottom: 10px; text-align: center;">
+                        <div style="text-align: left;">Product</div>
+                        <div style="background: #d1fae5; padding: 4px; border-radius: 4px;">C</div>
+                        <div style="background: #ddd6fe; padding: 4px; border-radius: 4px;">P</div>
+                        <div>Total</div>
+                    </div>
+
+                    <div id="summaryProductRows" style="max-height: 400px; overflow-y: auto;">
+                        ${summaryArray.map(item => `
+                            <div style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 8px; margin-bottom: 8px; align-items: center; padding: 12px; background: #f9fafb; border-radius: 6px; border: 1px solid #e5e7eb;">
+                                <div style="font-size: 13px; color: #111827; font-weight: 500;">${item.productName || 'Unknown'}</div>
+                                <div style="font-size: 13px; color: #000000; text-align: center; font-weight: 700;">${Math.round(item.cartons || 0)}</div>
+                                <div style="font-size: 13px; color: #000000; text-align: center; font-weight: 700;">${Math.round(item.pcs || 0)}</div>
+                                <div style="font-size: 13px; color: #111827; text-align: center; font-weight: 700;">৳${Math.round(item.total || 0)}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+
+                <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+                    <div style="font-size: 14px; font-weight: 600; color: #6b7280; margin-bottom: 8px;">Grand Total</div>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div style="font-size: 16px; font-weight: 700; color: #111827;">Total Amount</div>
+                        <div style="font-size: 20px; font-weight: 700; background: linear-gradient(135deg, #10b981 0%, #059669 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">৳${Math.round(grandTotal)}</div>
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 10px;">
+                    <button type="button" id="closeSummaryBtn" style="flex: 1; padding: 14px; border: none; background: #6b7280; border-radius: 8px; font-size: 15px; font-weight: 600; color: white; cursor: pointer; transition: all 0.3s ease;">Close</button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        const closeModal = () => {
+            modal.style.animation = 'slideDown 0.3s ease';
+            setTimeout(() => modal.remove(), 300);
+        };
+
+        document.getElementById('closeSummaryModal').addEventListener('click', closeModal);
+        document.getElementById('closeSummaryBtn').addEventListener('click', closeModal);
+        
+
+
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) closeModal();
+        });
+
+        // Add slide animations if not already added
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideUp {
+                from {
+                    transform: translateY(100%);
+                    opacity: 0;
+                }
+                to {
+                    transform: translateY(0);
+                    opacity: 1;
+                }
+            }
+            @keyframes slideDown {
+                from {
+                    transform: translateY(0);
+                    opacity: 1;
+                }
+                to {
+                    transform: translateY(100%);
+                    opacity: 0;
+                }
+            }
+        `;
+        if (!document.querySelector('style[data-orders-modal]')) {
+            style.setAttribute('data-orders-modal', '');
+            document.head.appendChild(style);
+        }
+    },
+
+
+
+
+
+
+
+
+
 
     async showAddOrderModal() {
         // Ensure data is loaded
@@ -627,7 +801,7 @@ const OrdersModule = {
                 ` : ''}
 
                 <div style="display: flex; gap: 10px;">
-                    <button type="button" id="editOrderBtn" style="flex: 1; padding: 14px; border: none; background: #f59e0b; border-radius: 8px; font-size: 15px; font-weight: 600; color: white; cursor: pointer; transition: all 0.3s ease;">Edit</button>
+                    <button type="button" id="editOrderBtn" style="flex: 0 0 120px; padding: 14px; border: none; background: #f59e0b; border-radius: 8px; font-size: 15px; font-weight: 600; color: white; cursor: pointer; transition: all 0.3s ease;">Edit</button>
                     <button type="button" id="closeViewBtn" style="flex: 1; padding: 14px; border: none; background: #6b7280; border-radius: 8px; font-size: 15px; font-weight: 600; color: white; cursor: pointer; transition: all 0.3s ease;">Close</button>
                 </div>
             </div>
@@ -646,6 +820,8 @@ const OrdersModule = {
             closeModal();
             this.showEditOrderModal(order);
         });
+
+
 
         modal.addEventListener('click', (e) => {
             if (e.target === modal) closeModal();

@@ -277,6 +277,13 @@ const CreditsModule = {
             return;
         }
 
+        // Sort customers by credit balance (highest first)
+        filteredCustomers.sort((a, b) => {
+            const balanceA = (customerCredits[a.id]?.totalCredit || 0) - (customerCredits[a.id]?.totalPaid || 0);
+            const balanceB = (customerCredits[b.id]?.totalCredit || 0) - (customerCredits[b.id]?.totalPaid || 0);
+            return balanceB - balanceA; // Descending order
+        });
+
         filteredCustomers.forEach(customer => {
             const creditData = customerCredits[customer.id] || { totalCredit: 0, totalPaid: 0, credits: [] };
             const balance = creditData.totalCredit - creditData.totalPaid;

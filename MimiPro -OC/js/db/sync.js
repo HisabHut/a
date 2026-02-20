@@ -1,29 +1,18 @@
 /**
- * Cloud Sync Module - Backup & Restore Model
+ * Cloud Sync Module - Download Only Model
  * 
- * This implements a backup+restore sync model (NOT real-time)
+ * This implements a download-only sync model (NO UPLOADS)
  * Sync happens:
  * - On app launch
  * - On manual "Sync Now" button click
- * - Owner device only
  * 
- * Firestore Structure:
- * /users/{ownerId}/  (ownerId = admin's Firebase Auth UID)
- *   /employees/{employeeId}
- *   /attendance/{attendanceId}
- *   /advances/{advanceId}
- *   /delivery/{deliveryId}
- *   ... etc
- * 
- * Note: "users" collection is used for compatibility with existing data.
- * Each user document represents an owner/company.
- * 
- * Key Features:
- * - Bidirectional sync (upload changed, download newer)
- * - Conflict resolution (cloud newer wins)
- * - Soft deletes (deleted: true flag)
- * - No real-time listeners
- * - Source of truth: Firestore = backup, IndexedDB = primary
+ * Downloads:
+ * - Customers (from cloud to local IndexedDB)
+ * - Products (from cloud to local IndexedDB)
+ * - Areas (from cloud to local IndexedDB)
+ *
+ * NO UPLOADS: All data is read-only from cloud. Local changes are not synced back.
+ * Source of truth: Firestore (read-only)
  */
 
 const SyncModule = {
@@ -314,7 +303,7 @@ const SyncModule = {
         this.updateSyncIndicator('syncing');
 
         try {
-            console.log('🔄 Starting sync (Upload + Download)...');
+            console.log('🔄 Starting sync (Download only)...');
             
             if (window.App) {
                 App.showToast('Syncing data...', 'info');
@@ -322,11 +311,7 @@ const SyncModule = {
 
             console.log('🔑 Company ID:', companyId);
             
-            // Upload customer credentials to Firestore
-            console.log('⬆️  Uploading customer credentials...');
-            await this.uploadCustomerCredentials(companyId);
-            
-            // Download cloud data
+            // Download cloud data only (NO UPLOADS)
             console.log('⬇️  Downloading data from cloud...');
             await this.downloadAndMerge(companyId);
             
@@ -365,110 +350,6 @@ const SyncModule = {
             
         } finally {
             this.isSyncing = false;
-        }
-    },
-
-    /**
-     * Upload local changes to Firestore
-     */
-    async uploadLocalChanges(companyId) {
-        console.log('⏭️ Upload sync started');
-        return;
-    },
-
-    /**
-     * Hash password using SHA-256
-     */
-    async hashPassword(password) {
-        if (!password) return '';
-        const encoder = new TextEncoder();
-        const data = encoder.encode(password);
-        const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-    },
-
-    /**
-     * Upload customer credentials to Firestore
-     */
-    async uploadCustomerCredentials(companyId) {
-        try {
-            console.log('📤 Uploading customer credentials to Firestore...');
-            
-            // Get all customers from local DB
-            const customers = await DB.getAll('customers');
-            console.log(`📦 Found ${customers.length} customers to sync`);
-            
-            let uploadCount = 0;
-            
-            for (const customer of customers) {
-                try {
-                    // Only upload customers that have required fields
-                    if (!customer.customerId || (!customer.passwordHash && !customer.loginPassword)) {
-                        console.warn(`⏭️  Skipping customer ${customer.id} - missing customerId or password`);
-                        continue;
-                    }
-                    
-                    // Use passwordHash if available, otherwise assume loginPassword is plain and hash it
-                    const passwordHash = customer.passwordHash || await this.hashPassword(customer.loginPassword);
-                    console.log(`🔐 Using password hash for ${customer.customerId}`);
-                    
-                    // Prepare customer data for Firestore
-                    const firestoreData = {
-                        id: customer.id,
-                        customerId: customer.customerId,
-                        name: customer.name || '',
-                        email: customer.email || '',
-                        phone: customer.mobile || customer.phone || '',
-                        passwordHash: passwordHash,
-                        totalOrders: customer.totalOrders || 0,
-                        totalSpent: customer.totalSpent || 0,
-                        availableCredit: customer.availableCredit || 0,
-                        issuedCredit: customer.issuedCredit || 0,
-                        usedCredit: customer.usedCredit || 0,
-                        area: customer.area || '',
-                        status: customer.status || 'active',
-                        active: customer.active !== false,
-                        createdAt: customer.createdAt || new Date().toISOString(),
-                        updatedAt: new Date().toISOString()
-                    };
-                    
-                    // Upload to Firestore using customerId as document ID (for easy lookup)
-                    await this.uploadCustomerToFirestore(companyId, customer.customerId, firestoreData);
-                    uploadCount++;
-                    console.log(`✅ Uploaded customer: ${customer.customerId}`);
-                    
-                } catch (error) {
-                    console.error(`❌ Failed to upload customer ${customer.id}:`, error);
-                }
-            }
-            
-            console.log(`✅ Customer upload complete: ${uploadCount}/${customers.length} uploaded`);
-            
-        } catch (error) {
-            console.error('❌ Error uploading customer credentials:', error);
-            throw error;
-        }
-    },
-
-    /**
-     * Upload single customer to Firestore
-     */
-    async uploadCustomerToFirestore(companyId, customerId, data) {
-        try {
-            const db = window.firebase.firestore();
-            
-            await db.collection('users')
-                .doc(companyId)
-                .collection('customers')
-                .doc(String(customerId))
-                .set(data, { merge: true });
-                
-            console.log(`📤 Customer ${customerId} synced to Firestore`);
-            
-        } catch (error) {
-            console.error(`❌ Failed to sync customer to Firestore:`, error);
-            throw error;
         }
     },
 
@@ -641,6 +522,13 @@ const SyncModule = {
         const cloudTime = cloudData.updatedAt || cloudData.createdAt || '';
         const localTime = localData.updatedAt || localData.createdAt || '';
         return cloudTime > localTime;
+    },
+
+    /**
+     * Alias for syncNow() for backward compatibility
+     */
+    async forceFullSync() {
+        return this.syncNow();
     },
 
     /**

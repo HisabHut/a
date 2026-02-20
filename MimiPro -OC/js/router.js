@@ -13,10 +13,7 @@ const Router = {
                 module: 'dashboard',
                 title: 'Dashboard'
             },
-            'shopControlPage': {
-                module: 'shopControl',
-                title: 'Shop Control'
-            },
+
             'ordersPage': {
                 module: 'orders',
                 title: 'Orders'

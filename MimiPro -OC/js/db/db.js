@@ -4,7 +4,7 @@
 
 const DB = {
     name: 'MimiProDB',
-    version: 10,
+    version: 11,
     instance: null,
 
     stores: {
@@ -12,7 +12,8 @@ const DB = {
         customers: 'customers',
         areas: 'areas',
         orders: 'orders',
-        credits: 'credits'
+        credits: 'credits',
+        settings: 'settings'
     },
 
     async init() {
@@ -82,6 +83,11 @@ const DB = {
                     });
                     orderStore.createIndex('customerId', 'customerId', { unique: false });
                     orderStore.createIndex('createdAt', 'createdAt', { unique: false });
+                }
+
+                // Settings store (key-value)
+                if (!db.objectStoreNames.contains('settings')) {
+                    db.createObjectStore('settings', { keyPath: 'key' });
                 }
 
                 // Credits store
@@ -301,6 +307,31 @@ const DB = {
 
     async updateCredit(creditData) {
         return await this.update('credits', creditData);
+    },
+
+    // Key-value settings helpers
+    async getSetting(key) {
+        await this.ensureConnection();
+        return new Promise((resolve, reject) => {
+            try {
+                const tx = this.instance.transaction(['settings'], 'readonly');
+                const request = tx.objectStore('settings').get(key);
+                request.onsuccess = () => resolve(request.result ? request.result.value : null);
+                request.onerror = () => reject(request.error);
+            } catch (e) { resolve(null); }
+        });
+    },
+
+    async putSetting(key, value) {
+        await this.ensureConnection();
+        return new Promise((resolve, reject) => {
+            try {
+                const tx = this.instance.transaction(['settings'], 'readwrite');
+                const request = tx.objectStore('settings').put({ key, value });
+                request.onsuccess = () => resolve();
+                request.onerror = () => reject(request.error);
+            } catch (e) { reject(e); }
+        });
     }
 };
 
